@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Bilibili Minecraft 基岩版创作者</title>
+<style>
+:root { color-scheme: dark;
+  --site-bg: #0d1015; --site-fg: #e8e8e8; --site-accent: #7d9fc7; --site-on-accent: #2b3a4d;
+  --site-surface: #151a22; --site-muted: #8b93a1; --site-border: #2b323d;
+  --site-font: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+  --site-radius: 5px; --site-space: 1; --site-type: 1; --site-motion: 1; }
+@media (prefers-reduced-motion: reduce) { :root { --site-motion: 0.01; } }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--site-bg); color: var(--site-fg);
+  font: 13px/1.55 var(--site-font); overscroll-behavior: none; }
+#chart { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; -webkit-tap-highlight-color: transparent; }
+#chart.dragging { cursor: grabbing; }
+.hud { position: fixed; pointer-events: none; z-index: 3; left: calc(18px + env(safe-area-inset-left)); top: calc(16px + env(safe-area-inset-top)); }
+.hud h1 { font-size: calc(15px * var(--site-type, 1)); font-weight: 600; margin: 0 0 3px; letter-spacing: .02em; }
+.hud p { margin: 0; color: var(--site-muted); font-size: calc(12px * var(--site-type, 1)); }
+.controls { display: flex; flex-direction: column; align-items: flex-start; gap: calc(7px * var(--site-space, 1)); margin-top: 10px; pointer-events: auto; }
+.controls label { display: inline-flex; align-items: center; gap: 8px; color: var(--site-muted); font-size: calc(12px * var(--site-type, 1)); cursor: pointer; user-select: none; }
+.controls select { background: var(--site-surface); color: #d7dde6; border: 1px solid var(--site-border); border-radius: var(--site-radius); padding: 3px 7px; font: inherit; font-size: 12px; cursor: pointer; outline: none; }
+.controls select:hover { border-color: #3b4553; }
+#eraSwitch { display: inline-flex; border: 1px solid var(--site-border); border-radius: 6px; overflow: hidden; }
+#eraSwitch button { background: var(--site-surface); color: var(--site-muted); border: 0; padding: 4px 11px; font: inherit; font-size: 12px; cursor: pointer; }
+#eraSwitch button + button { border-left: 1px solid var(--site-border); }
+#eraSwitch button.on { background: var(--site-on-accent); color: #dce6f2; }
+#eraSwitch button:hover:not(.on) { color: #d7dde6; }
+#avatarToggle input { accent-color: var(--site-accent); margin: 0; }
+#tip { position: fixed; z-index: 5; display: none; pointer-events: none; background: rgba(19,22,28,.97);
+  border: 1px solid var(--site-border); border-radius: calc(var(--site-radius) + 2px); padding: 9px 11px; box-shadow: 0 8px 24px rgba(0,0,0,.35); max-width: calc(100vw - 24px); }
+#tip .row { display: flex; gap: 9px; align-items: center; }
+#tip img { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; flex: none; background: var(--site-border); }
+#tip .sub { color: var(--site-muted); }
+#toolbox { position: fixed; z-index: 6; right: calc(14px + env(safe-area-inset-right)); bottom: calc(14px + env(safe-area-inset-bottom));
+  height: 42px; display: flex; align-items: center; background: rgba(19,22,28,.97); border: 1px solid var(--site-border); border-radius: 999px; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+#toolBody { display: flex; align-items: center; max-width: 0; opacity: 0; overflow: hidden; visibility: hidden;
+  transition: max-width calc(220ms * var(--site-motion, 1)) cubic-bezier(.4,0,.2,1), opacity calc(180ms * var(--site-motion, 1)) ease, visibility 0s linear calc(220ms * var(--site-motion, 1)); }
+#toolbox.open #toolBody, #toolbox.toolmode #toolBody { max-width: 300px; opacity: 1; visibility: visible;
+  transition: max-width calc(220ms * var(--site-motion, 1)) cubic-bezier(.4,0,.2,1), opacity calc(180ms * var(--site-motion, 1)) ease, visibility 0s; }
+#toolButtons { display: flex; align-items: center; padding-left: 5px; gap: 2px; }
+#toolStatus { display: none; align-items: center; min-width: 0; }
+#toolbox.toolmode #toolButtons { display: none; }
+#toolbox.toolmode #toolStatus { display: flex; }
+.tool-btn { flex: none; width: 34px; height: 34px; border-radius: 50%; border: 0; background: transparent; color: #8b93a1; cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; }
+.tool-btn:hover { color: #e8e8e8; background: rgba(255,255,255,.06); }
+#toolToggle { flex: none; width: 42px; height: 42px; border-radius: 50%; border: 0; background: transparent; color: #8b93a1; cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; }
+#toolToggle:hover { color: #e8e8e8; }
+#toolToggle svg { display: block; }
+#toolToggle .ic-open { transition: transform calc(200ms * var(--site-motion, 1)) ease; }
+#toolbox.open #toolToggle .ic-open { transform: rotate(180deg); }
+#toolToggle .ic-close { display: none; }
+#toolbox.toolmode #toolToggle .ic-open { display: none; }
+#toolbox.toolmode #toolToggle .ic-close { display: block; }
+#toolbox.remind::after { content: ""; position: absolute; inset: 0; border-radius: 999px; border: 1.5px solid rgba(255,255,255,.7); animation: ripple 1.2s ease-out; pointer-events: none; }
+@keyframes ripple { from { inset: 0; opacity: .7; } to { inset: -13px; opacity: 0; } }
+#searchStatus { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 0 4px 0 13px; cursor: pointer; }
+.sr-face, .ss-avatar { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; flex: none; background: #2b323d; }
+.face-fallback { display: flex; align-items: center; justify-content: center; color: #d7dde6; font-size: 13px; }
+.ss-text { display: flex; flex-direction: column; line-height: 1.3; min-width: 0; }
+.ss-text b { font-size: 13px; font-weight: 600; max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ss-text span { font-size: 11px; color: #8b93a1; }
+.ss-text b.ph { color: #8b93a1; font-weight: 500; }
+.ss-hint { display: flex; align-items: center; gap: 7px; color: #8b93a1; font-size: 12px; white-space: nowrap; }
+.duo { display: flex; align-items: center; flex: none; }
+.duo .ss-avatar { box-shadow: 0 0 0 2px rgba(19,22,28,.97); }
+.duo .ss-avatar + .ss-avatar { margin-left: -12px; }
+#connectSlots { padding: 2px 0 10px; }
+.slot { display: flex; align-items: center; gap: 10px; width: calc(100% - 24px); margin: 6px 12px; padding: 7px 10px;
+  background: transparent; border: 1px dashed #2b323d; border-radius: 8px; cursor: pointer; text-align: left; font: inherit; color: inherit; }
+.slot:hover { border-color: #3b4553; background: rgba(255,255,255,.03); }
+.slot.filled { border-style: solid; }
+.head-actions { display: flex; gap: 4px; }
+#connectModal .modal-cancel { display: none; }
+#connectModal.change .modal-cancel { display: flex; }
+#connectModal.change #connectModalClose { display: none; }
+#searchModal .ic-minus { display: none; }
+#searchModal.change .ic-minus { display: block; }
+#searchModal.change .ic-close { display: none; }
+#searchModal, #connectModal { position: fixed; inset: 0; z-index: 10; display: none; align-items: flex-start; justify-content: center;
+  padding: 12vh 16px 16px; background: rgba(0,0,0,.45); }
+#searchModal.open, #connectModal.open { display: flex; }
+.modal-panel { width: 340px; max-width: 100%; background: rgba(19,22,28,.97); border: 1px solid #333a46; border-radius: 10px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+.modal-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 10px 0 14px; color: #8b93a1; font-size: 12px; }
+.modal-close { width: 26px; height: 26px; border-radius: 50%; border: 0; background: transparent; color: #8b93a1; cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; }
+.modal-close:hover { color: #e8e8e8; background: rgba(255,255,255,.06); }
+#searchInput { display: block; box-sizing: border-box; width: calc(100% - 28px); margin: 8px 14px 12px; background: #0d1015; color: #e8e8e8;
+  border: 1px solid #2b323d; border-radius: 5px; padding: 7px 9px; font: inherit; font-size: 13px; outline: none; }
+#searchInput:focus { border-color: #3b4553; }
+#searchResults { max-height: 264px; overflow-y: auto; border-top: 1px solid #232a34; }
+.sr-row { display: flex; align-items: center; gap: 10px; padding: 8px 14px; cursor: pointer; }
+.sr-row:hover { background: rgba(255,255,255,.05); }
+.sr-row.disabled { cursor: default; opacity: .38; }
+.sr-row.disabled:hover { background: transparent; }
+.sr-text { min-width: 0; line-height: 1.3; }
+.sr-text b { display: block; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sr-text span { font-size: 11px; color: #8b93a1; }
+.sr-empty, .sr-end { padding: 16px 14px; color: #8b93a1; font-size: 12px; text-align: center; }
+.sr-end { padding: 4px 14px 12px; font-size: 11px; }
+#loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--site-bg); color: var(--site-muted); font-size: 13px; z-index: 9; transition: opacity calc(200ms * var(--site-motion, 1)); }
+#loading.hide { opacity: 0; pointer-events: none; }
+@media (max-width: 640px) {
+  .hud h1 { font-size: 13px; } .hud p { font-size: 11px; }
+  #tip { padding: 8px 10px; font-size: 12px; } #tip img { width: 34px; height: 34px; }
+  #toolbox { right: calc(12px + env(safe-area-inset-right)); bottom: calc(12px + env(safe-area-inset-bottom)); }
+  .ss-text b { max-width: 108px; }
+  #searchModal, #connectModal { padding: 9vh 12px 16px; }
+  .modal-panel { width: calc(100vw - 24px); }
+}
+</style>
+</head>
+<body>
+<canvas id="chart"></canvas>
+<div class="hud">
+  <h1>Bilibili Minecraft 基岩版创作者</h1>
+  <p id="eraDesc">2011-08-06 至今 · 联合投稿 + @提及</p>
+  <p id="stat">加载中…</p>
+  <div class="controls">
+    <div id="eraSwitch">
+      <button data-era="all" class="on">全部</button>
+      <button data-era="pe">携带版</button>
+      <button data-era="br">基岩版</button>
+    </div>
+    <label>布局方案
+      <select id="layoutSelect">
+        <option value="flat">平铺</option>
+        <option value="hierarchy">层级</option>
+        <option value="hub">枢纽</option>
+        <option value="comm">社区</option>
+      </select>
+    </label>
+    <label id="avatarToggle"><input type="checkbox" id="allAvatars"> 全部头像</label>
+  </div>
+</div>
+<div id="tip"></div>
+<div id="toolbox">
+  <div id="toolBody">
+    <div id="toolButtons">
+      <button class="tool-btn" id="toolSearchBtn" title="搜索创作者" aria-label="搜索创作者">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20.5 20.5l-4.3-4.3"/></svg>
+      </button>
+      <button class="tool-btn" id="toolConnectBtn" title="连接两位创作者" aria-label="连接两位创作者">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="2.6"/><circle cx="19" cy="12" r="2.6"/><path d="M7.8 12h8.4"/></svg>
+      </button>
+    </div>
+    <div id="toolStatus"><div id="searchStatus"></div></div>
+  </div>
+  <button id="toolToggle" aria-label="展开工具栏">
+    <svg class="ic-open" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg>
+    <svg class="ic-close" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+  </button>
+</div>
+<div id="searchModal">
+  <div class="modal-panel">
+    <div class="modal-head"><span id="searchTitle">搜索创作者</span>
+      <span class="head-actions">
+        <button class="modal-close ic-minus" id="searchModalCancel" aria-label="取消更改"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
+        <button class="modal-close ic-close" id="searchModalClose" aria-label="关闭"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </span>
+    </div>
+    <input id="searchInput" placeholder="输入名字或 UID" autocomplete="off">
+    <div id="searchResults"></div>
+  </div>
+</div>
+<div id="connectModal">
+  <div class="modal-panel">
+    <div class="modal-head"><span>连接两位创作者</span>
+      <span class="head-actions">
+        <button class="modal-close modal-cancel" id="connectModalCancel" aria-label="取消更改"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
+        <button class="modal-close" id="connectModalClose" aria-label="关闭"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </span>
+    </div>
+    <div id="connectSlots">
+      <button class="slot" id="connectSlotA"></button>
+      <button class="slot" id="connectSlotB"></button>
+    </div>
+  </div>
+</div>
+<div id="loading"><span id="loadText">加载数据…</span></div>
+<script src="data.js"></script>
+<script>
+(function () {
+"use strict";
+var GRAPH = window.GRAPH;
+var canvas = document.getElementById("chart");
+var ctx = canvas.getContext("2d", { alpha: false });
+var loading = document.getElementById("loading");
+var stat = document.getElementById("stat");
+var eraDesc = document.getElementById("eraDesc");
+var tip = document.getElementById("tip");
+var allAvatars = document.getElementById("allAvatars");
+if (!GRAPH || !Array.isArray(GRAPH.nodes)) { stat.textContent = "数据缺失"; loading.classList.add("hide"); return; }
+
+var ERA_INFO = {
+  all: "2011-08-06 至今 · 联合投稿 + @提及",
+  pe: "携带版时代 2011-08-06 ~ 2017-09-19",
+  br: "基岩版时代 2017-09-20 至今"
+};
+var era = "all", layoutName = "flat";
+var nodes = [], edges = [], incidentEdges = [], indexById = new Map();
+var layoutGroups = null, groupColors = null, layoutReady = false;
+var layoutCache = {}, loadToken = 0;
+var showAllAvatars = false;
+var DPR_CAP = 2, dpr = 1, width = 1, height = 1, strokeUnit = 1;
+var MIN_SCALE = 0.04, MAX_SCALE = 5, AVATAR_MIN_R = 5;
+var view = { scale: 1, ox: 0, oy: 0, ready: false }, fitScale = 1;
+var interacting = false, interactionTimer = 0;
+var screenR = new Float32Array(0);
+var palette = ["#5d7089", "#7d9fc7", "#8f7fb8", "#6f9e8a", "#b08d6a", "#a7748a", "#6a9bb0", "#9a9a6a"];
+
+function fnv(ids) {
+  var h = 0x811c9dc5, s = ids.join(",");
+  for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return h.toString(16).padStart(8, "0");
+}
+function faceUrl(f) {
+  if (!f) return "";
+  if (f.indexOf("//") === 0) return "https:" + f;
+  if (f.indexOf("http://") === 0) return "https://" + f.slice(7);
+  return f;
+}
+function escapeHtml(v) {
+  return String(v == null ? "" : v).replace(/[&<>"']/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+  });
+}
+function communityColor(g) {
+  var hue = (g * 137.508) % 360, sat = 38 + (g * 53 % 3) * 7, light = 55 + (g * 31 % 3) * 7;
+  return "hsl(" + hue.toFixed(1) + "," + sat + "%," + light + "%)";
+}
+function lighten(hex, k) {
+  if (hex[0] !== "#") return hex;
+  var n = parseInt(hex.slice(1), 16);
+  var r = Math.round(((n >> 16) & 255) + (255 - ((n >> 16) & 255)) * k);
+  var g = Math.round(((n >> 8) & 255) + (255 - ((n >> 8) & 255)) * k);
+  var b = Math.round((n & 255) + (255 - (n & 255)) * k);
+  return "rgb(" + r + "," + g + "," + b + ")";
+}
+function nodeColor(i) {
+  if (layoutName === "comm" && groupColors) return groupColors[layoutGroups[i]] || palette[0];
+  var d = nodes[i].degree;
+  return d >= 10 ? "#7d9fc7" : (d >= 4 ? "#5d7089" : "#465366");
+}
+
+function buildView() {
+  var vn = GRAPH.nodes.filter(function (n) { return era === "all" || n[era]; });
+  nodes = vn.map(function (n) {
+    return { id: String(n.id), name: n.name || "", face: faceUrl(n.face), vpe: n.vpe || 0, vbr: n.vbr || 0,
+             degree: 0, radius: 8, x: 0, y: 0, avatar: null, avatarState: 0, avatarFade: 0 };
+  });
+  indexById = new Map();
+  nodes.forEach(function (n, i) { indexById.set(n.id, i); });
+  edges = [];
+  GRAPH.links.forEach(function (l) {
+    if (era !== "all" && !l[era]) return;
+    var a = indexById.get(String(l.source)), b = indexById.get(String(l.target));
+    if (a === undefined || b === undefined || a === b) return;
+    edges.push({ a: a, b: b, j: l.j });
+  });
+  incidentEdges = nodes.map(function () { return []; });
+  edges.forEach(function (e, i) {
+    nodes[e.a].degree++; nodes[e.b].degree++;
+    incidentEdges[e.a].push(i); incidentEdges[e.b].push(i);
+  });
+  nodes.forEach(function (n) { n.radius = 8 + Math.min(12, Math.sqrt(n.degree) * 2.8); });
+  screenR = new Float32Array(nodes.length);
+  stat.textContent = nodes.length + "人 " + edges.length + "边";
+  eraDesc.textContent = ERA_INFO[era];
+}
+
+function fitTarget() {
+  var pts = nodes.filter(function (n) { return n.degree > 0; });
+  if (!pts.length) pts = nodes;
+  var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  pts.forEach(function (n) {
+    minX = Math.min(minX, n.x); maxX = Math.max(maxX, n.x);
+    minY = Math.min(minY, n.y); maxY = Math.max(maxY, n.y);
+  });
+  var pad = Math.max(24, Math.min(55, Math.min(width, height) * 0.08));
+  var gw = Math.max(maxX - minX, 1), gh = Math.max(maxY - minY, 1);
+  var scale = Math.max(MIN_SCALE, Math.min(Math.min((width - pad * 2) / gw, (height - pad * 2) / gh), 1.4));
+  return { scale: scale, ox: width / 2 - (minX + maxX) / 2 * scale, oy: height / 2 - (minY + maxY) / 2 * scale };
+}
+function fit() {
+  var t = fitTarget();
+  view.scale = t.scale; view.ox = t.ox; view.oy = t.oy; fitScale = t.scale; view.ready = true;
+}
+
+function loadLayout(name, first) {
+  var key = era + "_" + name, token = ++loadToken;
+  var data = layoutCache[key];
+  var p = data ? Promise.resolve(data) : fetch("layouts/" + key + ".json").then(function (r) {
+    if (!r.ok) throw new Error("layout");
+    return r.json();
+  }).then(function (d) { layoutCache[key] = d; return d; });
+  return p.then(function (d) {
+    if (token !== loadToken) return;
+    if (d.count !== nodes.length || d.hash !== fnv(nodes.map(function (n) { return n.id; }))) throw new Error("布局校验失败");
+    layoutGroups = d.group || null;
+    for (var i = 0; i < nodes.length; i++) { nodes[i].x = d.x[i]; nodes[i].y = d.y[i]; }
+    if (layoutGroups) {
+      var max = 0;
+      layoutGroups.forEach(function (g) { max = Math.max(max, g); });
+      groupColors = [];
+      for (var g = 0; g <= max; g++) groupColors.push(communityColor(g));
+    } else groupColors = null;
+    layoutName = name; layoutReady = true;
+    fit();
+    if (!first) scheduleDraw();
+  });
+}
+
+var drawPending = false;
+function scheduleDraw() {
+  if (drawPending) return;
+  drawPending = true;
+  requestAnimationFrame(function () { drawPending = false; draw(); });
+}
+function beginInteraction() { interacting = true; clearTimeout(interactionTimer); }
+function endInteractionSoon() {
+  clearTimeout(interactionTimer);
+  interactionTimer = setTimeout(function () { interacting = false; scheduleDraw(); }, 300);
+}
+function resizeCanvas() {
+  var vv = window.visualViewport;
+  var nextDpr = Math.min(window.devicePixelRatio || 1, DPR_CAP);
+  var nextW = Math.max(1, Math.round(window.innerWidth));
+  var nextH = Math.max(1, Math.round((vv && vv.height) || window.innerHeight));
+  var anchor = null;
+  if (view.ready && layoutReady && width > 1) {
+    anchor = { x: (width / 2 - view.ox) / view.scale, y: (height / 2 - view.oy) / view.scale };
+  }
+  dpr = nextDpr; strokeUnit = 1 / dpr; width = nextW; height = nextH;
+  canvas.width = Math.floor(width * dpr); canvas.height = Math.floor(height * dpr);
+  canvas.style.width = width + "px"; canvas.style.height = height + "px";
+  if (anchor) { view.ox = width / 2 - anchor.x * view.scale; view.oy = height / 2 - anchor.y * view.scale; }
+  else if (!view.ready) fit();
+  scheduleDraw();
+}
+
+var hovered = -1, hoverAmount = 0, hoverAnim = 0, hoverTimer = 0, hoverPending = -1, hoverX = 0, hoverY = 0;
+var searchFocus = null, connectFocus = null, toolAmount = 0, toolAnim = 0, activeTool = null;
+var lastDrawTs = 0;
+
+function draw() {
+  var t0 = performance.now();
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = "#0d1015";
+  ctx.fillRect(0, 0, width, height);
+  if (!layoutReady) return;
+  var highlight = null, incident = [], fade = 0, focusIdx = -1, focusSet = null;
+  if (searchFocus && toolAmount > 0.01) {
+    highlight = new Set([searchFocus.node]);
+    searchFocus.neighbors.forEach(function (i) { highlight.add(i); });
+    incident = incidentEdges[searchFocus.node]; fade = toolAmount; focusIdx = searchFocus.node;
+  } else if (connectFocus && connectFocus.connected && toolAmount > 0.01) {
+    highlight = connectFocus.nodes; incident = connectFocus.edges; fade = toolAmount; focusSet = connectFocus.endpoints;
+  } else if (hovered >= 0 && hoverAmount > 0.01) {
+    highlight = new Set([hovered]);
+    incident = incidentEdges[hovered];
+    incident.forEach(function (ei) { highlight.add(edges[ei].a); highlight.add(edges[ei].b); });
+    fade = hoverAmount; focusIdx = hovered;
+  }
+  for (var i = 0; i < nodes.length; i++) screenR[i] = Math.min(44, Math.max(1.6, nodes[i].radius * view.scale));
+  // 边
+  ctx.beginPath();
+  for (var e = 0; e < edges.length; e++) addEdgePath(e);
+  ctx.strokeStyle = "rgba(145,160,182," + (0.26 - 0.19 * fade).toFixed(3) + ")";
+  ctx.lineWidth = (0.9 - 0.4 * fade) * strokeUnit;
+  ctx.stroke();
+  if (highlight && incident.length) {
+    ctx.beginPath();
+    incident.forEach(addEdgePath);
+    ctx.strokeStyle = "rgba(180,205,235," + (0.95 * fade).toFixed(3) + ")";
+    ctx.lineWidth = (0.9 + 1.1 * fade) * strokeUnit;
+    ctx.stroke();
+  }
+  var now = performance.now(), dt = lastDrawTs ? Math.min(64, now - lastDrawTs) : 16;
+  lastDrawTs = now;
+  var fadeActive = false;
+  var focusGroup = (layoutName === "comm" && layoutGroups && focusIdx >= 0 && fade > 0.01) ? layoutGroups[focusIdx] : -1;
+  for (var a = 0; a < nodes.length; a++) {
+    var nd = nodes[a];
+    var allowed = focusGroup < 0 || a === focusIdx || (highlight && highlight.has(a)) || (layoutGroups && layoutGroups[a] === focusGroup);
+    // 全头像模式也设下限: overview时节点仅1~2px, 加载上万头像既看不出区别又吃满内存
+    var minR = showAllAvatars ? 2.5 : AVATAR_MIN_R;
+    var want = allowed && screenR[a] >= minR ? 1 : 0;
+    // 触发必须早于fade推进: fade一旦>0.01, 绘制循环里的懒加载条件就永远不成立
+    if (want && !nd.avatar && !nd.avatarState && !interacting) {
+      var sx = nd.x * view.scale + view.ox, sy = nd.y * view.scale + view.oy, sr = screenR[a];
+      if (sx > -sr && sy > -sr && sx < width + sr && sy < height + sr) ensureAvatar(nd);
+    }
+    if (!nd.avatar && nd.avatarFade === 0) continue;
+    if (nd.avatarFade === want) continue;
+    var step = dt / 140;
+    nd.avatarFade = nd.avatarFade < want ? Math.min(want, nd.avatarFade + step) : Math.max(want, nd.avatarFade - step);
+    if (nd.avatarFade !== want) fadeActive = true;
+  }
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  for (var k = 0; k < nodes.length; k++) {
+    var n = nodes[k];
+    var x = n.x * view.scale + view.ox, y = n.y * view.scale + view.oy;
+    var r = screenR[k];
+    if (x < -r || y < -r || x > width + r || y > height + r) continue;
+    var isFocus = k === focusIdx || !!(focusSet && focusSet.has(k));
+    var isRel = !!(highlight && highlight.has(k)) && !isFocus;
+    var dim = !!(highlight && !highlight.has(k));
+    var color = nodeColor(k);
+    ctx.globalAlpha = dim ? 1 - 0.82 * fade : 1;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = color; ctx.fill();
+    var baseWant = showAllAvatars || r >= AVATAR_MIN_R;
+    if (baseWant && n.avatar && n.avatarFade > 0.01) {
+      ctx.globalAlpha = (dim ? 1 - 0.82 * fade : 1) * n.avatarFade;
+      ctx.drawImage(n.avatar, x - r, y - r, r * 2, r * 2);
+    } else if (baseWant && !dim && n.avatarFade <= 0.01) {
+      if (r >= 7) {
+        ctx.fillStyle = "rgba(235,242,250,.82)";
+        ctx.font = Math.min(28, Math.max(7, r * 1.05)) + "px -apple-system,'Segoe UI','Microsoft YaHei',sans-serif";
+        ctx.fillText((n.name || "?").trim().charAt(0) || "?", x, y + 0.5);
+      }
+    }
+    if (r >= AVATAR_MIN_R || isFocus || isRel) {
+      var ringW = (isFocus ? 3.2 : (isRel ? 2.4 : 1.6)) * strokeUnit;
+      ctx.beginPath(); ctx.arc(x, y, r + ringW * 0.5, 0, Math.PI * 2);
+      ctx.strokeStyle = isFocus ? lighten(color, 0.55) : color;
+      ctx.lineWidth = ringW; ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+  if (fadeActive) scheduleDraw();
+}
+function addEdgePath(ei) {
+  var ed = edges[ei], A = nodes[ed.a], B = nodes[ed.b];
+  var ax = A.x * view.scale + view.ox, ay = A.y * view.scale + view.oy;
+  var bx = B.x * view.scale + view.ox, by = B.y * view.scale + view.oy;
+  var dx = bx - ax, dy = by - ay, len = Math.hypot(dx, dy) || 1;
+  var ra = screenR[ed.a] || 0, rb = screenR[ed.b] || 0;
+  if (len <= ra + rb + 0.6) return;
+  var ux = dx / len, uy = dy / len;
+  ctx.moveTo(ax + ux * ra, ay + uy * ra);
+  ctx.lineTo(bx - ux * rb, by - uy * rb);
+}
+
+// 头像懒加载
+var avatarQueue = [], avatarActive = 0, avatarRedrawTimer = 0, avatarLru = [];
+function evictAvatars() {
+  while (avatarLru.length > 3000) {
+    var k = avatarLru.findIndex(function (n) {
+      var x = n.x * view.scale + view.ox, y = n.y * view.scale + view.oy, r = n.radius * view.scale;
+      return x < -r || y < -r || x > width + r || y > height + r;
+    });
+    if (k < 0) break;
+    var old = avatarLru.splice(k, 1)[0];
+    old.avatar = null; old.avatarState = 0; old.avatarFade = 0;
+  }
+}
+function circularAvatar(img) {
+  var out = document.createElement("canvas");
+  out.width = out.height = 64;
+  var g = out.getContext("2d");
+  g.beginPath(); g.arc(32, 32, 32, 0, Math.PI * 2); g.clip();
+  g.drawImage(img, 0, 0, 64, 64);
+  return out;
+}
+function ensureAvatar(n) {
+  if (!n.face || n.avatarState) return;
+  n.avatarState = 1;
+  avatarQueue.push(n);
+  pumpAvatars();
+}
+function pumpAvatars() {
+  while (avatarActive < 24 && avatarQueue.length) {
+    var n = avatarQueue.shift();
+    avatarActive++;
+    // 头像CDN防盗链: 外站Referer一律403, 必须空Referer; 无CORS头故不能用fetch
+    new Promise(function (res) {
+      var img = new Image();
+      img.referrerPolicy = "no-referrer";
+      img.onload = function () { try { n.avatar = circularAvatar(img); n.avatarState = 2; avatarLru.push(n); evictAvatars(); } catch (e) { n.avatarState = 3; } res(); };
+      img.onerror = function () { n.avatarState = 3; res(); };
+      img.src = n.face;
+    }).then(function () {
+      avatarActive--;
+      if (!avatarRedrawTimer && !interacting) {
+        avatarRedrawTimer = setTimeout(function () { avatarRedrawTimer = 0; if (!interacting) scheduleDraw(); }, 300);
+      }
+      pumpAvatars();
+    });
+  }
+}
+allAvatars.addEventListener("change", function () { showAllAvatars = this.checked; scheduleDraw(); });
+
+// 视图动画 / 手势
+var pointers = new Map(), drag = null, pinch = null, gesture = null, inertiaId = 0, viewAnim = 0;
+var velocity = { x: 0, y: 0, t: 0 }, lastTap = { t: 0, x: 0, y: 0 };
+function stopViewAnim() { if (viewAnim) cancelAnimationFrame(viewAnim); viewAnim = 0; }
+function stopInertia() { if (inertiaId) cancelAnimationFrame(inertiaId); inertiaId = 0; }
+function animateView(ts, tox, toy, dur) {
+  stopViewAnim(); stopInertia();
+  var from = { scale: view.scale, ox: view.ox, oy: view.oy }, start = performance.now();
+  beginInteraction();
+  function step(now) {
+    var p = Math.min(1, (now - start) / (dur || 240)), e = 1 - Math.pow(1 - p, 2);
+    view.scale = from.scale + (ts - from.scale) * e;
+    view.ox = from.ox + (tox - from.ox) * e;
+    view.oy = from.oy + (toy - from.oy) * e;
+    if (hovered >= 0 && tip.style.display === "block") {
+      var f = nodes[hovered];
+      placeTip(f.x * view.scale + view.ox, f.y * view.scale + view.oy);
+    }
+    scheduleDraw();
+    if (p < 1) viewAnim = requestAnimationFrame(step);
+    else { viewAnim = 0; endInteractionSoon(); }
+  }
+  viewAnim = requestAnimationFrame(step);
+}
+function zoomAt(px, py, next) {
+  next = Math.max(MIN_SCALE, Math.min(MAX_SCALE, next));
+  var wx = (px - view.ox) / view.scale, wy = (py - view.oy) / view.scale;
+  animateView(next, px - wx * next, py - wy * next, 240);
+}
+function resetView() { var t = fitTarget(); animateView(t.scale, t.ox, t.oy, 260); }
+function startInertia() {
+  stopInertia();
+  var vx = velocity.x, vy = velocity.y;
+  if (Math.hypot(vx, vy) < 0.08) { endInteractionSoon(); return; }
+  var last = performance.now();
+  function step(now) {
+    var frames = Math.min(3, Math.max(0.5, (now - last) / 16.7));
+    last = now;
+    var decay = Math.pow(0.93, frames);
+    vx *= decay; vy *= decay;
+    view.ox += vx * 16.7 * frames; view.oy += vy * 16.7 * frames;
+    scheduleDraw();
+    if (Math.hypot(vx, vy) < 0.02) { inertiaId = 0; endInteractionSoon(); return; }
+    inertiaId = requestAnimationFrame(step);
+  }
+  inertiaId = requestAnimationFrame(step);
+}
+function nearestNode(mx, my, slop) {
+  var best = null, bestD = Infinity, pad = slop == null ? 2 : slop;
+  for (var i = 0; i < nodes.length; i++) {
+    var x = nodes[i].x * view.scale + view.ox, y = nodes[i].y * view.scale + view.oy;
+    var r = Math.min(44, Math.max(3, nodes[i].radius * view.scale)) + pad;
+    var d = Math.hypot(mx - x, my - y);
+    if (d < r && d < bestD) { bestD = d; best = { index: i, dist: d }; }
+  }
+  return best;
+}
+function pointSegDist(px, py, x1, y1, x2, y2) {
+  var dx = x2 - x1, dy = y2 - y1, l2 = dx * dx + dy * dy;
+  var t = l2 ? Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / l2)) : 0;
+  return Math.hypot(x1 + dx * t - px, y1 + dy * t - py);
+}
+function nearestEdge(mx, my, focus, slop) {
+  if (focus < 0) return null;
+  var f = nodes[focus], fx = f.x * view.scale + view.ox, fy = f.y * view.scale + view.oy;
+  var best = null, bestD = slop;
+  incidentEdges[focus].forEach(function (ei) {
+    var ed = edges[ei], o = nodes[ed.a === focus ? ed.b : ed.a];
+    var d = pointSegDist(mx, my, fx, fy, o.x * view.scale + view.ox, o.y * view.scale + view.oy);
+    if (d < bestD) { bestD = d; best = { index: ei, dist: d }; }
+  });
+  return best;
+}
+var tipW = 210, tipH = 76;
+function placeTip(mx, my) {
+  var rect = tip.getBoundingClientRect();
+  if (rect.width) tipW = rect.width;
+  if (rect.height) tipH = rect.height;
+  var gap = 14, left = mx + gap, top = my - tipH - gap;
+  if (top < 8) top = my + gap + 18;
+  if (left + tipW > width - 8) left = mx - tipW - gap;
+  tip.style.left = Math.max(8, Math.min(left, width - tipW - 8)) + "px";
+  tip.style.top = Math.max(8, Math.min(top, height - tipH - 8)) + "px";
+}
+function positionTip(n, mx, my) {
+  var vtxt = era === "pe" ? (n.vpe + " 个携带版视频") : era === "br" ? (n.vbr + " 个基岩版视频") : (n.vpe + " 携带 · " + n.vbr + " 基岩");
+  tip.innerHTML = '<div class="row">' + (n.face ? '<img src="' + escapeHtml(n.face) + '" alt="">' : "") +
+    "<div><b>" + escapeHtml(n.name) + '</b><br><span class="sub">' + escapeHtml(n.id) + " · " + vtxt + "</span></div></div>";
+  tip.style.display = "block";
+  placeTip(mx, my);
+}
+function hideTip() {
+  clearTimeout(hoverTimer); hoverPending = -1; tip.style.display = "none";
+  if (hoverAnim) cancelAnimationFrame(hoverAnim);
+  hovered = -1;
+  if (hoverAmount) { hoverAmount = 0; scheduleDraw(); }
+}
+function animateHover(target) {
+  var from = hoverAmount, start = performance.now(), dur = target > from ? 160 : 120;
+  if (hoverAnim) cancelAnimationFrame(hoverAnim);
+  function step(now) {
+    var p = Math.min(1, (now - start) / dur), e = p * p * (3 - 2 * p);
+    hoverAmount = from + (target - from) * e;
+    draw();
+    if (p < 1) hoverAnim = requestAnimationFrame(step);
+    else { hoverAnim = 0; if (target === 0 && hoverPending < 0) hovered = -1; }
+  }
+  hoverAnim = requestAnimationFrame(step);
+}
+function hoverAllowed(i) {
+  if (!activeTool) return true;
+  if (activeTool === "search" && searchFocus) return i === searchFocus.node || searchFocus.neighbors.has(i);
+  if (activeTool === "connect" && connectFocus) return connectFocus.nodes.has(i);
+  return false;
+}
+function requestHover(i, mx, my) {
+  if (i >= 0 && !hoverAllowed(i)) i = -1;
+  hoverX = mx; hoverY = my;
+  if (i === hovered && i >= 0) { tip.style.display = "block"; placeTip(mx, my); return; }
+  if (i === hoverPending && i >= 0) return;
+  clearTimeout(hoverTimer);
+  hoverPending = i;
+  if (i < 0) { hoverPending = -1; tip.style.display = "none"; animateHover(0); return; }
+  if (hovered >= 0 && hovered !== i) { tip.style.display = "none"; animateHover(0); }
+  hoverTimer = setTimeout(function () {
+    if (hoverPending !== i) return;
+    hoverPending = -1; hovered = i;
+    animateHover(1);
+    positionTip(nodes[i], hoverX, hoverY);
+  }, 140);
+}
+function focusNode(i) {
+  var n = nodes[i], x = n.x * view.scale + view.ox, y = n.y * view.scale + view.oy;
+  clearTimeout(hoverTimer); hoverPending = -1; hovered = i; hoverAmount = 1;
+  positionTip(n, x, y);
+  var margin = 90;
+  if (Math.abs(x - width / 2) > width / 2 - margin || Math.abs(y - height / 2) > height / 2 - margin) {
+    animateView(view.scale, width / 2 - n.x * view.scale, height / 2 - n.y * view.scale, 260);
+  }
+  scheduleDraw();
+}
+function handleTap(mx, my) {
+  var now = performance.now();
+  var near = Math.hypot(mx - lastTap.x, my - lastTap.y) < 44;
+  if (now - lastTap.t < 320 && near) {
+    lastTap.t = 0; hideTip();
+    if (view.scale > fitScale * 1.5) resetView(); else zoomAt(mx, my, view.scale * 2.3);
+    noteGesture();
+    return;
+  }
+  lastTap.t = now; lastTap.x = mx; lastTap.y = my;
+  var tn = nearestNode(mx, my, 22);
+  if (activeTool) { if (tn && hoverAllowed(tn.index)) requestHover(tn.index, mx, my); return; }
+  var te = nearestEdge(mx, my, hovered, 26);
+  if (te && (!tn || te.dist + 6 < tn.dist)) {
+    lastTap.t = 0;
+    var ed = edges[te.index];
+    focusNode(ed.a === hovered ? ed.b : ed.a);
+    return;
+  }
+  if (tn) { requestHover(tn.index, mx, my); return; }
+  requestHover(-1, 0, 0);
+}
+canvas.addEventListener("wheel", function (ev) {
+  ev.preventDefault();
+  stopViewAnim(); stopInertia();
+  var mx = ev.clientX, my = ev.clientY;
+  var bx = (mx - view.ox) / view.scale, by = (my - view.oy) / view.scale;
+  var next = Math.max(MIN_SCALE, Math.min(MAX_SCALE, view.scale * Math.exp(-ev.deltaY * 0.0012)));
+  view.ox = mx - bx * next; view.oy = my - by * next; view.scale = next;
+  beginInteraction(); scheduleDraw(); noteGesture(); endInteractionSoon();
+}, { passive: false });
+canvas.addEventListener("pointerdown", function (ev) {
+  stopViewAnim(); stopInertia();
+  canvas.setPointerCapture(ev.pointerId);
+  pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+  beginInteraction();
+  if (pointers.size === 1) {
+    drag = { x: ev.clientX, y: ev.clientY };
+    gesture = { sx: ev.clientX, sy: ev.clientY, moved: 0, at: performance.now(), type: ev.pointerType || "mouse" };
+    velocity.x = velocity.y = 0; velocity.t = performance.now();
+    canvas.classList.add("dragging");
+    if (ev.pointerType === "touch") { tip.style.display = "none"; clearTimeout(hoverTimer); hoverPending = -1; }
+    else hideTip();
+  } else if (pointers.size === 2) {
+    var pts = Array.from(pointers.values());
+    pinch = { d: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y),
+              cx: (pts[0].x + pts[1].x) / 2, cy: (pts[0].y + pts[1].y) / 2,
+              scale: view.scale, ox: view.ox, oy: view.oy };
+    drag = null; gesture = null; hideTip();
+  }
+});
+canvas.addEventListener("pointermove", function (ev) {
+  if (!pointers.has(ev.pointerId)) {
+    if (ev.pointerType !== "touch") {
+      var hit = nearestNode(ev.clientX, ev.clientY, 2);
+      requestHover(hit ? hit.index : -1, ev.clientX, ev.clientY);
+    }
+    return;
+  }
+  pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+  if (pointers.size === 2 && pinch) {
+    beginInteraction(); noteGesture();
+    var pts = Array.from(pointers.values());
+    var d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+    var next = Math.max(MIN_SCALE, Math.min(MAX_SCALE, pinch.scale * d / Math.max(pinch.d, 1)));
+    var cx = (pts[0].x + pts[1].x) / 2, cy = (pts[0].y + pts[1].y) / 2;
+    var wx = (pinch.cx - pinch.ox) / pinch.scale, wy = (pinch.cy - pinch.oy) / pinch.scale;
+    view.scale = next; view.ox = cx - wx * next; view.oy = cy - wy * next;
+    scheduleDraw(); endInteractionSoon();
+    return;
+  }
+  if (drag) {
+    beginInteraction();
+    var dx = ev.clientX - drag.x, dy = ev.clientY - drag.y;
+    if (gesture) gesture.moved += Math.abs(dx) + Math.abs(dy);
+    if (gesture && gesture.moved > 8) noteGesture();
+    drag.x = ev.clientX; drag.y = ev.clientY;
+    var now = performance.now(), el = Math.max(1, now - velocity.t);
+    velocity.t = now;
+    velocity.x = velocity.x * 0.7 + dx / el * 0.3;
+    velocity.y = velocity.y * 0.7 + dy / el * 0.3;
+    view.ox += dx; view.oy += dy;
+    scheduleDraw(); endInteractionSoon();
+  }
+});
+function endPointer(ev) {
+  pointers.delete(ev.pointerId);
+  if (pointers.size < 2) pinch = null;
+  if (pointers.size === 1) {
+    var rest = pointers.values().next().value;
+    drag = { x: rest.x, y: rest.y };
+    velocity.x = velocity.y = 0; velocity.t = performance.now();
+    return;
+  }
+  if (pointers.size === 0) {
+    var g = gesture;
+    gesture = null; drag = null;
+    canvas.classList.remove("dragging");
+    if (!g) { endInteractionSoon(); return; }
+    if (g.type === "mouse") {
+      endInteractionSoon();
+      var hit = nearestNode(ev.clientX, ev.clientY, 2);
+      requestHover(hit ? hit.index : -1, ev.clientX, ev.clientY);
+      return;
+    }
+    if (g.moved < 12 && performance.now() - g.at < 600) { handleTap(ev.clientX, ev.clientY); endInteractionSoon(); }
+    else startInertia();
+  }
+}
+canvas.addEventListener("pointerup", endPointer);
+canvas.addEventListener("pointercancel", function (ev) { if (gesture) gesture.moved = 1e6; endPointer(ev); });
+canvas.addEventListener("pointerleave", function (ev) {
+  if (ev.pointerType !== "touch" && pointers.size === 0) requestHover(-1, 0, 0);
+});
+
+// 工具栏 / 搜索 / 连接
+var toolbox = document.getElementById("toolbox");
+var toolToggle = document.getElementById("toolToggle");
+var searchStatus = document.getElementById("searchStatus");
+var searchModal = document.getElementById("searchModal");
+var searchInput = document.getElementById("searchInput");
+var searchResults = document.getElementById("searchResults");
+var connectModal = document.getElementById("connectModal");
+var connectPicks = { a: -1, b: -1 }, pickerSlot = null;
+var remindTimer = 0;
+var ICON_SEARCH = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20.5 20.5l-4.3-4.3"/></svg>';
+var ICON_CONNECT = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="2.6"/><circle cx="19" cy="12" r="2.6"/><path d="M7.8 12h8.4"/></svg>';
+function setToolbarOpen(open) {
+  toolbox.classList.toggle("open", open);
+  if (!activeTool) toolToggle.setAttribute("aria-label", open ? "收起工具栏" : "展开工具栏");
+}
+function scheduleReminder() {
+  clearTimeout(remindTimer);
+  if (!activeTool) return;
+  remindTimer = setTimeout(function () {
+    if (!activeTool) return;
+    toolbox.classList.remove("remind");
+    void toolbox.offsetWidth;
+    toolbox.classList.add("remind");
+    setTimeout(function () { toolbox.classList.remove("remind"); }, 1300);
+    scheduleReminder();
+  }, 2000);
+}
+function noteGesture() { if (toolbox.classList.contains("open") && !activeTool) setToolbarOpen(false); }
+function animateTool(target, done) {
+  if (toolAnim) cancelAnimationFrame(toolAnim);
+  var from = toolAmount, start = performance.now(), dur = target > from ? 200 : 160;
+  function step(now) {
+    var p = Math.min(1, (now - start) / dur), e = p * p * (3 - 2 * p);
+    toolAmount = from + (target - from) * e;
+    scheduleDraw();
+    if (p < 1) toolAnim = requestAnimationFrame(step);
+    else { toolAnim = 0; if (target === 0 && done) done(); }
+  }
+  toolAnim = requestAnimationFrame(step);
+}
+function faceHtml(n, cls) {
+  var ch = (n.name || "?").trim().charAt(0) || "?";
+  return n.face ? '<img class="' + cls + '" src="' + escapeHtml(n.face) + '" referrerpolicy="no-referrer" alt="">' :
+    '<span class="' + cls + ' face-fallback">' + escapeHtml(ch) + "</span>";
+}
+function renderToolStatus() {
+  if (activeTool === "search") {
+    if (searchFocus) {
+      var n = nodes[searchFocus.node];
+      searchStatus.innerHTML = faceHtml(n, "ss-avatar") + '<span class="ss-text"><b>' + escapeHtml(n.name) + "</b><span>" + escapeHtml(n.id) + "</span></span>";
+    } else searchStatus.innerHTML = '<span class="ss-hint">' + ICON_SEARCH + "<span>搜索创作者…</span></span>";
+  } else if (activeTool === "connect") {
+    if (connectPicks.a < 0 || connectPicks.b < 0) {
+      searchStatus.innerHTML = '<span class="ss-hint">' + ICON_CONNECT + "<span>连接两位创作者</span></span>";
+    } else if (connectFocus) {
+      var duo = '<span class="duo">' + faceHtml(nodes[connectPicks.a], "ss-avatar") + faceHtml(nodes[connectPicks.b], "ss-avatar") + "</span>";
+      var txt;
+      if (connectFocus.same) txt = "<b>同一创作者</b><span>这是同一个人呀</span>";
+      else if (connectFocus.direct) txt = "<b>直接相连</b><span>他们之间没有中间人</span>";
+      else if (connectFocus.connected) txt = "<b>" + connectFocus.count + " 位创作者</b><span>将他们连接起来</span>";
+      else txt = "<b>他们现在连不上</b><span>这两个时代还没交集</span>";
+      searchStatus.innerHTML = duo + '<span class="ss-text">' + txt + "</span>";
+    }
+  }
+}
+function setToolMode(tool) {
+  activeTool = tool;
+  toolbox.classList.toggle("toolmode", !!tool);
+  toolToggle.setAttribute("aria-label", tool ? "退出工具" : "展开工具栏");
+  scheduleReminder();
+}
+function openSearchModal(asPicker) {
+  pickerSlot = asPicker || null;
+  searchModal.classList.add("open");
+  clearTimeout(remindTimer);
+  var change = !!pickerSlot || !!searchFocus;
+  searchModal.classList.toggle("change", change);
+  document.getElementById("searchTitle").textContent = pickerSlot ? "选择创作者" : "搜索创作者";
+  searchInput.value = "";
+  renderResults("");
+  setTimeout(function () { searchInput.focus(); }, 0);
+}
+function closeSearchModal() {
+  searchModal.classList.remove("open", "change");
+  scheduleReminder();
+}
+function openConnectModal() {
+  connectModal.classList.add("open");
+  clearTimeout(remindTimer);
+  connectModal.classList.toggle("change", connectPicks.a >= 0 && connectPicks.b >= 0);
+  renderConnectSlots();
+}
+function closeConnectModal() {
+  connectModal.classList.remove("open", "change");
+  scheduleReminder();
+}
+function activateTool(tool) {
+  setToolMode(tool);
+  setToolbarOpen(true);
+  if (tool === "search") { searchFocus = null; renderToolStatus(); openSearchModal(); }
+  else { connectPicks.a = connectPicks.b = -1; connectFocus = null; renderToolStatus(); openConnectModal(); }
+}
+function exitTool() {
+  setToolMode(null);
+  pickerSlot = null;
+  hideTip();
+  if (searchFocus || connectFocus) {
+    animateTool(0, function () { searchFocus = null; connectFocus = null; });
+  }
+}
+toolToggle.addEventListener("click", function () {
+  if (activeTool) exitTool();
+  else setToolbarOpen(!toolbox.classList.contains("open"));
+});
+document.getElementById("toolSearchBtn").addEventListener("click", function () { activateTool("search"); });
+document.getElementById("toolConnectBtn").addEventListener("click", function () { activateTool("connect"); });
+searchStatus.addEventListener("click", function () {
+  if (activeTool === "search") openSearchModal();
+  else if (activeTool === "connect") openConnectModal();
+});
+document.getElementById("searchModalClose").addEventListener("click", function () {
+  closeSearchModal();
+  if (!searchFocus) exitTool();
+});
+document.getElementById("searchModalCancel").addEventListener("click", function () {
+  var wasPicker = !!pickerSlot;
+  closeSearchModal();
+  pickerSlot = null;
+  if (wasPicker) openConnectModal();
+  else if (!searchFocus) exitTool();
+});
+searchModal.addEventListener("click", function (ev) {
+  if (ev.target === searchModal) document.getElementById(searchModal.classList.contains("change") ? "searchModalCancel" : "searchModalClose").click();
+});
+document.getElementById("connectModalClose").addEventListener("click", function () { closeConnectModal(); exitTool(); });
+document.getElementById("connectModalCancel").addEventListener("click", function () { closeConnectModal(); });
+connectModal.addEventListener("click", function (ev) {
+  if (ev.target === connectModal) document.getElementById(connectModal.classList.contains("change") ? "connectModalCancel" : "connectModalClose").click();
+});
+function pickerDisabled() {
+  if (!pickerSlot) return -1;
+  return pickerSlot === "a" ? connectPicks.b : connectPicks.a;
+}
+function searchNodes(q) {
+  q = q.trim();
+  if (!q) return [];
+  var ql = q.toLowerCase(), exact = indexById.get(q);
+  var head = exact === undefined ? [] : [exact];
+  var rest = [];
+  for (var i = 0; i < nodes.length; i++) {
+    if (i === exact || !nodes[i].name) continue;
+    if (nodes[i].name.toLowerCase().indexOf(ql) >= 0) rest.push(i);
+  }
+  rest.sort(function (a, b) { return nodes[b].degree - nodes[a].degree; });
+  var list = head.concat(rest), dis = pickerDisabled();
+  if (dis >= 0 && list.indexOf(dis) >= 0) {
+    list.splice(list.indexOf(dis), 1);
+    list = list.slice(0, 8);
+    list.push(dis);
+  }
+  return list.slice(0, 8);
+}
+function renderResults(q) {
+  if (!q.trim()) { searchResults.innerHTML = ""; return; }
+  var list = searchNodes(q), dis = pickerDisabled();
+  if (!list.length) { searchResults.innerHTML = '<div class="sr-empty">没有匹配的创作者</div>'; return; }
+  var html = "";
+  list.forEach(function (i) {
+    var n = nodes[i], off = i === dis;
+    html += '<div class="sr-row' + (off ? " disabled" : "") + '" data-i="' + i + '">' + faceHtml(n, "sr-face") +
+      '<span class="sr-text"><b>' + escapeHtml(n.name) + "</b><span>" + escapeHtml(n.id) + " · " + n.degree + " 个合作</span></span></div>";
+  });
+  html += '<div class="sr-end">已经到底了</div>';
+  searchResults.innerHTML = html;
+}
+searchInput.addEventListener("input", function () { renderResults(this.value); });
+searchResults.addEventListener("click", function (ev) {
+  var row = ev.target.closest(".sr-row");
+  if (!row || row.classList.contains("disabled")) return;
+  var i = +row.dataset.i;
+  if (pickerSlot) {
+    connectPicks[pickerSlot] = i;
+    pickerSlot = null;
+    closeSearchModal();
+    openConnectModal();
+    if (connectPicks.a >= 0 && connectPicks.b >= 0) finishConnect();
+    return;
+  }
+  closeSearchModal();
+  hideTip();
+  connectFocus = null;
+  var nb = new Set();
+  incidentEdges[i].forEach(function (ei) { nb.add(edges[ei].a); nb.add(edges[ei].b); });
+  nb.delete(i);
+  searchFocus = { node: i, neighbors: nb };
+  renderToolStatus();
+  animateTool(1);
+  focusNode(i);
+});
+function renderConnectSlots() {
+  ["a", "b"].forEach(function (key) {
+    var el = document.getElementById(key === "a" ? "connectSlotA" : "connectSlotB");
+    var i = connectPicks[key];
+    if (i >= 0) {
+      var n = nodes[i];
+      el.classList.add("filled");
+      el.innerHTML = faceHtml(n, "ss-avatar") + '<span class="ss-text"><b>' + escapeHtml(n.name) + "</b><span>" + escapeHtml(n.id) + "</span></span>";
+    } else {
+      el.classList.remove("filled");
+      el.innerHTML = '<span class="ss-avatar face-fallback">+</span><span class="ss-text"><b class="ph">点击选择创作者</b></span>';
+    }
+  });
+}
+document.getElementById("connectSlotA").addEventListener("click", function () { closeConnectModal(); openSearchModal("a"); });
+document.getElementById("connectSlotB").addEventListener("click", function () { closeConnectModal(); openSearchModal("b"); });
+function shortestPath(from, to) {
+  if (from === to) return { nodes: [from], edges: [] };
+  var prev = new Array(nodes.length).fill(-1), prevE = new Array(nodes.length).fill(-1);
+  prev[from] = from;
+  var queue = [from];
+  for (var qi = 0; qi < queue.length; qi++) {
+    var cur = queue[qi];
+    var list = incidentEdges[cur];
+    for (var li = 0; li < list.length; li++) {
+      var ei = list[li], ed = edges[ei];
+      var nxt = ed.a === cur ? ed.b : ed.a;
+      if (prev[nxt] !== -1) continue;
+      prev[nxt] = cur; prevE[nxt] = ei;
+      if (nxt === to) {
+        var pn = [], pe = [], c = to;
+        while (c !== from) { pn.push(c); pe.push(prevE[c]); c = prev[c]; }
+        pn.push(from); pn.reverse(); pe.reverse();
+        return { nodes: pn, edges: pe };
+      }
+      queue.push(nxt);
+    }
+  }
+  return null;
+}
+function frameNodes(set) {
+  var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  set.forEach(function (i) {
+    var n = nodes[i];
+    minX = Math.min(minX, n.x); maxX = Math.max(maxX, n.x);
+    minY = Math.min(minY, n.y); maxY = Math.max(maxY, n.y);
+  });
+  var x1 = minX * view.scale + view.ox, y1 = minY * view.scale + view.oy;
+  var x2 = maxX * view.scale + view.ox, y2 = maxY * view.scale + view.oy;
+  var m = 60;
+  if (x1 >= m && y1 >= m && x2 <= width - m && y2 <= height - m) return;
+  var bw = Math.max(maxX - minX, 1), bh = Math.max(maxY - minY, 1);
+  var scale = Math.max(MIN_SCALE, Math.min(Math.min((width - 120) / bw, (height - 120) / bh), view.scale));
+  animateView(scale, width / 2 - (minX + maxX) / 2 * scale, height / 2 - (minY + maxY) / 2 * scale, 260);
+}
+function finishConnect() {
+  closeConnectModal();
+  hideTip();
+  searchFocus = null;
+  var same = connectPicks.a === connectPicks.b;
+  var path = shortestPath(connectPicks.a, connectPicks.b);
+  if (path) {
+    connectFocus = { nodes: new Set(path.nodes), edges: path.edges, endpoints: new Set([connectPicks.a, connectPicks.b]),
+                     count: Math.max(0, path.nodes.length - 2), connected: true, same: same, direct: !same && path.nodes.length === 2 };
+    animateTool(1);
+  } else {
+    connectFocus = { nodes: new Set([connectPicks.a, connectPicks.b]), edges: [], endpoints: new Set([connectPicks.a, connectPicks.b]),
+                     count: 0, connected: false, same: same, direct: false };
+  }
+  renderToolStatus();
+  frameNodes(connectFocus.nodes);
+}
+
+// 时代 / 布局切换
+document.getElementById("eraSwitch").addEventListener("click", function (ev) {
+  var btn = ev.target.closest("button");
+  if (!btn || btn.dataset.era === era) return;
+  era = btn.dataset.era;
+  Array.prototype.forEach.call(this.children, function (b) { b.classList.toggle("on", b === btn); });
+  switchView();
+});
+document.getElementById("layoutSelect").addEventListener("change", function () {
+  var name = this.value;
+  stat.textContent = "切换布局中…";
+  loadLayout(name, false).then(function () {
+    stat.textContent = nodes.length + "人 " + edges.length + "边";
+  }).catch(function () { stat.textContent = "布局加载失败"; });
+});
+function switchView() {
+  exitTool();
+  setToolMode(null);
+  searchFocus = null; connectFocus = null; toolAmount = 0;
+  hideTip();
+  layoutReady = false;
+  buildView();
+  stat.textContent = "切换中…";
+  loadLayout(layoutName, false).then(function () {
+    stat.textContent = nodes.length + "人 " + edges.length + "边";
+  }).catch(function (e) {
+    stat.textContent = "布局加载失败";
+  });
+}
+
+window.addEventListener("resize", resizeCanvas);
+if (window.visualViewport) window.visualViewport.addEventListener("resize", resizeCanvas);
+resizeCanvas();
+buildView();
+loadLayout("flat", true).then(function () {
+  loading.classList.add("hide");
+  scheduleDraw();
+}).catch(function () {
+  stat.textContent = "布局加载失败(需要 layouts/ 目录)";
+  loading.classList.add("hide");
+});
+})();
+</script>
+</body>
+</html>
