@@ -1,14 +1,9 @@
-# 抓取中间数据（大体积，含 cookie 指纹）
-state/
-buvid.json
-
-# 发布产物 / 本地生成物
+# 本地生成物
 dist/
 __pycache__/
 *.pyc
 *.tmp
 
-# 参考站数据与素材（第三方版权，不入库）
-ref/
-shots/
-vibe_images/
+# 凭据与日志（不入库）
+buvid.json
+state/crawl.log
