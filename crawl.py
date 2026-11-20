@@ -4,7 +4,7 @@
       python crawl.py details  # 阶段2: 视频详情(联合投稿/简介/头像)
 状态全部落盘 state/, 可随时中断续跑。
 """
-import json, os, sys, time, random, re, hashlib, calendar, urllib.request, urllib.parse, urllib.error, http.cookiejar
+import json, os, sys, time, random, re, hashlib, calendar, collections, urllib.request, urllib.parse, urllib.error, http.cookiejar
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 STATE = os.path.join(BASE, "state")
@@ -410,6 +410,208 @@ def phase_mcbe_months():
     save("search_videos", videos); save("mcbe_months_done", sorted(done))
     log("MCBE月切片完成: 请求 %d, 新增视频 %d" % (req, added))
 
+def phase_big():
+    """头部创作者(已知视频>=150)名字枚举上限从150抬到300重扫"""
+    from build_graph import bedrock_hit
+    videos = load("search_videos", {})
+    creators = load("creators", {})
+    cnt = collections.Counter(r["mid"] for r in videos.values())
+    targets = sorted([m for m, c in cnt.items() if c >= 150], key=lambda m: -cnt[m])
+    log("大号重扫: 目标 %d 人 (已知视频>=150)" % len(targets))
+    bili = Bili()
+    added = 0
+    for k, mid in enumerate(targets, 1):
+        name = (creators.get(mid) or {}).get("name") or ""
+        if not name:
+            log("跳过无名 %s" % mid)
+            continue
+        pn = 1; nump = 1
+        while pn <= min(10, nump):
+            params = {"search_type": "video", "keyword": name, "page": pn, "page_size": 30, "order": "pubdate"}
+            d = bili.call(lambda: bili.signed_get("search/type", params), "大号 " + name, tries=3)
+            if d is None or d.get("code") != 0:
+                log("大号失败 %s p%d" % (name, pn))
+                break
+            data = d["data"] or {}
+            res = data.get("result") or []
+            nump = data.get("numPages") or 1
+            for v in res:
+                if str(v.get("mid")) != mid:
+                    continue
+                bv = v.get("bvid")
+                if not bv or bv in videos:
+                    continue
+                title = (v.get("title") or "").replace('<em class="keyword">', "").replace("</em>", "")
+                desc = v.get("description") or ""; tag = v.get("tag") or ""
+                if not bedrock_hit(title, desc, tag):
+                    continue
+                videos[bv] = {"mid": mid, "author": v.get("author") or name, "title": title,
+                              "desc": desc, "pubdate": v.get("pubdate") or 0, "tag": tag, "kw": "大号重扫"}
+                added += 1
+            if not res or pn >= nump:
+                break
+            pn += 1
+            time.sleep(random.uniform(1.0, 1.5))
+        if k % 5 == 0:
+            save("search_videos", videos)
+            log("大号进度 %d/%d, 新增 %d" % (k, len(targets), added))
+        time.sleep(random.uniform(0.4, 0.8))
+    save("search_videos", videos)
+    log("大号重扫完成: %d 人, 新增视频 %d, 总视频 %d" % (len(targets), added, len(videos)))
+
+def phase_week():
+    """对单月结果超过1000条(被截断)的月份按周切片重扫, 突破1000条上限"""
+    from build_graph import bedrock_hit
+    census = load("census_months", {})
+    videos = load("search_videos", {})
+    done = set(load("week_done", []))
+    tasks = []
+    for kw, months in census.items():
+        for key, val in months.items():
+            if (val.get("total") or 0) < 1000:
+                continue
+            y, m = [int(x) for x in key.split("-")]
+            beg = calendar.timegm((y, m, 1, 0, 0, 0)) - 8 * 3600
+            nxt = (y + 1, 1) if m == 12 else (y, m + 1)
+            end = calendar.timegm((nxt[0], nxt[1], 1, 0, 0, 0)) - 8 * 3600
+            t = beg
+            while t < end:
+                tasks.append((kw, key, t, min(t + 7 * 86400, end)))
+                t += 7 * 86400
+    log("周切片: 关键词 %s, 切片任务 %d, 已完成 %d, 已有视频 %d"
+        % ("/".join(census.keys()), len(tasks), len(done), len(videos)))
+    bili = Bili()
+    req = 0; added = 0
+    for kw, key, beg, end in tasks:
+        tag = "%s|%s|%d" % (kw, key, beg)
+        if tag in done:
+            continue
+        page = 1; nump = 1
+        while page <= min(34, nump):
+            params = {"search_type": "video", "keyword": kw, "page": page, "page_size": 30,
+                      "order": "pubdate", "pubtime_begin_s": beg, "pubtime_end_s": end}
+            d = bili.call(lambda: bili.signed_get("search/type", params), "周切 %s %s p%d" % (kw, key, page))
+            req += 1
+            if d is None or d.get("code") != 0:
+                log("周切失败 %s %s p%d" % (kw, key, page))
+                break
+            data = d["data"]; res = data.get("result") or []; nump = data.get("numPages") or 0
+            for v in res:
+                bv = v.get("bvid")
+                if not bv or bv in videos:
+                    continue
+                title = (v.get("title") or "").replace('<em class="keyword">', "").replace("</em>", "")
+                desc = v.get("description") or ""; tg = v.get("tag") or ""
+                if not bedrock_hit(title, desc, tg):
+                    continue
+                videos[bv] = {"mid": str(v.get("mid")), "author": v.get("author") or "", "title": title,
+                              "desc": desc, "pubdate": v.get("pubdate") or 0, "tag": tg, "kw": "周切"}
+                added += 1
+            if not res or page >= nump:
+                break
+            page += 1
+            time.sleep(random.uniform(0.9, 1.3))
+        done.add(tag)
+        if req % 10 == 0:
+            save("search_videos", videos); save("week_done", sorted(done))
+            log("周切进度 请求%d 新增%d | %s %s p%d/%d" % (req, added, kw, key, page, nump))
+        time.sleep(random.uniform(0.3, 0.6))
+    save("search_videos", videos); save("week_done", sorted(done))
+    log("周切片完成: 请求 %d, 新增视频 %d, 总视频 %d" % (req, added, len(videos)))
+
+def phase_union():
+    """遍历全部创作者最新30条, 用 is_union_video 标记找联合投稿(不限基岩标签)"""
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+    with open(os.path.join(BASE, "graph.json"), encoding="utf-8") as f:
+        g = json.load(f)
+    creators = load("creators", {})
+    faces = load("faces", {})
+    mids = [str(n["id"]) for n in g["nodes"]]
+    uv = load("union_videos", {})
+    done = set(load("union_done", []))
+    # staff-only 创作者在 creators.json 无名字: 用 faces.json 补齐; 之前被跳过的移出 done 重扫
+    def name_of(mid):
+        return (((creators.get(mid) or {}).get("name")) or ((faces.get(mid) or {}).get("name")) or "")
+    skipped = [m for m in done if not (((creators.get(m) or {}).get("name")) or "") and name_of(m)]
+    for m in skipped:
+        done.discard(m)
+    if skipped:
+        log("联合扫描: 找回 %d 个 staff-only 创作者名字, 加入重扫" % len(skipped))
+    todo = [m for m in mids if m not in done]
+    log("联合投稿扫描: 创作者 %d, 已完成 %d, 本轮 %d, 已有联合视频 %d"
+        % (len(mids), len(done), len(todo), len(uv)))
+    if not todo:
+        log("联合投稿扫描无需进行")
+        return
+    lock = threading.Lock()
+    pause_until = [0.0]
+    delay_floor = [0.9]
+    tls = threading.local()
+    counter = [0]
+    found = [0]
+
+    def brake(code):
+        with lock:
+            pause_until[0] = max(pause_until[0], time.time() + 180)
+            delay_floor[0] = min(6.0, delay_floor[0] * 1.8)
+            log("风控刹车 code=%s: 暂停180s delay_floor=%.1fs" % (code, delay_floor[0]))
+
+    def worker(mid):
+        while time.time() < pause_until[0]:
+            time.sleep(2)
+        if not hasattr(tls, "bili"):
+            tls.bili = Bili()
+        bili = tls.bili
+        name = name_of(mid)
+        if not name:
+            with lock:
+                done.add(mid); counter[0] += 1
+            return
+        params = {"search_type": "video", "keyword": name, "page": 1, "page_size": 30, "order": "pubdate"}
+        d = bili.call(lambda: bili.signed_get("search/type", params), "联合 " + name, tries=3, on_risk=brake)
+        if d and d.get("code") == 0:
+            rs = ((d.get("data") or {}).get("result")) or []
+            with lock:
+                for v in rs:
+                    if str(v.get("mid")) != mid or not v.get("is_union_video"):
+                        continue
+                    bv = v.get("bvid")
+                    if not bv or bv in uv:
+                        continue
+                    title = (v.get("title") or "").replace('<em class="keyword">', "").replace("</em>", "")
+                    uv[bv] = {"mid": mid, "author": v.get("author") or name, "title": title,
+                              "desc": v.get("description") or "", "pubdate": v.get("pubdate") or 0,
+                              "tag": v.get("tag") or "", "union": 1}
+                    found[0] += 1
+                done.add(mid); counter[0] += 1
+                if counter[0] % 200 == 0:
+                    save("union_videos", uv); save("union_done", sorted(done))
+                    log("联合扫描进度 %d/%d (%.1f%%), 命中 %d, delay_floor=%.1fs"
+                        % (counter[0], len(todo), 100.0 * counter[0] / max(1, len(todo)), found[0], delay_floor[0]))
+                    if delay_floor[0] > 0.9 and time.time() > pause_until[0]:
+                        delay_floor[0] = max(0.9, delay_floor[0] * 0.9)
+        else:
+            with lock:
+                log("联合失败 %s code=%s" % (name, (d or {}).get("code", "net")))
+        time.sleep(random.uniform(delay_floor[0], delay_floor[0] + 0.4))
+
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        list(ex.map(worker, todo))
+    save("union_videos", uv); save("union_done", sorted(done))
+    videos = load("search_videos", {})
+    added = 0
+    for bv, rec in uv.items():
+        if bv not in videos:
+            videos[bv] = {"mid": rec["mid"], "author": rec["author"], "title": rec["title"],
+                          "desc": rec["desc"], "pubdate": rec["pubdate"], "tag": rec.get("tag", ""),
+                          "union": 1, "kw": "联合扫描"}
+            added += 1
+        else:
+            videos[bv]["union"] = 1
+    save("search_videos", videos)
+    log("联合投稿扫描完成: %d 条联合视频 (新并入搜索集 %d)" % (len(uv), added))
+
 def phase_details():
     import threading
     from concurrent.futures import ThreadPoolExecutor
@@ -429,7 +631,7 @@ def phase_details():
     ok_authors = {videos[bv]["mid"] for bv in hit}
     COLLAB = re.compile(r"[@＠]|联动|合作|feat|联合|guest|嘉宾", re.I)
     todo = [bv for bv, v in videos.items()
-            if bv not in details and (bv in hit or (v["mid"] in ok_authors and COLLAB.search(v["title"])))]
+            if bv not in details and (bv in hit or (v["mid"] in ok_authors and COLLAB.search(v["title"])) or v.get("union"))]
     log("详情阶段: 搜索共%d条, 基岩视频%d, 基岩UP%d, 已抓%d, 本轮待抓%d(跳过%d)"
         % (len(videos), len(hit), len(ok_authors), len(details), len(todo), len(videos) - len(details) - len(todo)))
     lock = threading.Lock()
@@ -531,6 +733,12 @@ if __name__ == "__main__":
         phase_space()
     elif phase == "mcbe":
         phase_mcbe_months()
+    elif phase == "big":
+        phase_big()
+    elif phase == "week":
+        phase_week()
+    elif phase == "union":
+        phase_union()
     elif phase == "details":
         phase_details()
     else:

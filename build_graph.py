@@ -19,11 +19,34 @@ def load(name, default):
 STRONG = re.compile(r"基岩|bedrock|mcbe|mcpe|携带版|addon|行为包|pocket\s*edition|minecraft\s*pe|(?<![A-Za-z])pe(?![A-Za-z])", re.I)
 WEAK = re.compile(r"手机版|移动版|手游|安卓|android|ios", re.I)
 MCCTX = re.compile(r"我的世界|minecraft|(?<![A-Za-z])mc(?![A-Za-z])|网易|方块|苦力怕|史蒂夫|红石|生存|建造", re.I)
+# 其他沙盒/手游蹭"我的世界"标签的噪声源: 仅在无强基岩信号时排除
+OTHER_GAME = re.compile(r"迷你世界|蛋仔派对|和平精英|原神|罗布乐思|roblox|我的世界地下城", re.I)
+
+OTHER_GAME_LEAD = re.compile(r"^\s*(迷你世界|蛋仔派对)", re.I)
+MC_NAME = re.compile(r"我的世界|minecraft|(?<![A-Za-z])mc(?![A-Za-z])|基岩|mcbe", re.I)
+
+def is_other_game(title, desc, tag):
+    """判断一条视频是否属于其他沙盒游戏: 看标题主语, 不看蹭热度的标签"""
+    t = title or ""
+    if OTHER_GAME_LEAD.search(t):
+        return True
+    if OTHER_GAME.search(t) and not MC_NAME.search(t):
+        return True
+    text = "%s %s %s" % (t, desc or "", tag or "")
+    if STRONG.search(text):
+        return False
+    return bool(OTHER_GAME.search(text))
 
 def bedrock_hit(title, desc, tag):
+    # 标题直接以其他游戏名开头的是该游戏内容, 即使提到"基岩"也排除;
+    # 仅在其他游戏出现在标题中段/简介/标签时, 靠基岩信号判断, 避免误杀对比类视频
+    if OTHER_GAME_LEAD.search(title or ""):
+        return False
     text = "%s %s %s" % (title or "", desc or "", tag or "")
     if STRONG.search(text):
         return True
+    if OTHER_GAME.search(text):
+        return False
     return bool(WEAK.search(text) and MCCTX.search(text))
 
 AT_RE = re.compile(r"[@＠]([一-鿿A-Za-z0-9_\-]{1,24})")
@@ -49,8 +72,19 @@ def main():
     faces = load("faces", {})
 
     # 1) 基岩视频判定 + 时代
+    # 作者级去噪: 八成以上投稿都在说其他沙盒游戏(迷你世界/蛋仔等)的, 整体排除
+    _other = collections.Counter(); _total = collections.Counter()
+    for bv, v in videos.items():
+        d0 = details.get(bv) or {}
+        _total[v["mid"]] += 1
+        if is_other_game(d0.get("title") or v["title"], d0.get("desc") or v["desc"], v.get("tag", "")):
+            _other[v["mid"]] += 1
+    other_heavy = {m for m in _total if _total[m] >= 5 and _other[m] / _total[m] >= 0.8}
+
     hit = {}   # bv -> era
     for bv, v in videos.items():
+        if v["mid"] in other_heavy:
+            continue
         d = details.get(bv) or {}
         title = d.get("title") or v["title"]
         desc = d.get("desc") or v["desc"]
@@ -136,6 +170,44 @@ def main():
         v = videos[bv]
         for nm in match_at(v["title"] + "\n" + v["desc"], names):
             add_edge(v["mid"], names[nm], era, "at")
+
+    # 3.5) 手工/定向补录: 无基岩标签但确属基岩社区的合作视频
+    extra = set(load("extra_videos", []))
+    for bv in extra:
+        d = details.get(bv)
+        if not d or "err" in d:
+            continue
+        era = era_of(d.get("pubdate") or 0)
+        ow = d["owner"]["mid"]
+        staff = [s["mid"] for s in d.get("staff", []) if s["mid"] and s["mid"] != "0"]
+        if staff:
+            joint_videos += 1
+            party = [ow] + staff
+            for i in range(len(party)):
+                for j in range(i + 1, len(party)):
+                    add_edge(party[i], party[j], era, "joint")
+        for nm in match_at((d.get("title") or "") + "\n" + (d.get("desc") or ""), names):
+            add_edge(ow, names[nm], era, "at")
+
+    # 3.6) 联合投稿扫描: 视频本身无基岩标签, 但属于图内基岩创作者的合作
+    for bv, v in videos.items():
+        if not v.get("union"):
+            continue
+        d = details.get(bv)
+        if not d or "err" in d:
+            continue
+        era = era_of(d.get("pubdate") or v.get("pubdate") or 0)
+        ow = d["owner"]["mid"]
+        staff = [s["mid"] for s in d.get("staff", []) if s["mid"] and s["mid"] != "0"]
+        if not staff:
+            continue
+        joint_videos += 1
+        party = [ow] + staff
+        for i in range(len(party)):
+            for j in range(i + 1, len(party)):
+                add_edge(party[i], party[j], era, "joint")
+        for nm in match_at((d.get("title") or "") + "\n" + (d.get("desc") or ""), names):
+            add_edge(ow, names[nm], era, "at")
 
     # 4) 输出
     node_list = [{"id": mid, "name": n["name"] or mid, "face": n["face"],

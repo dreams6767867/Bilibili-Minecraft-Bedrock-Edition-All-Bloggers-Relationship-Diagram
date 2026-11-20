@@ -578,9 +578,8 @@ function placeTip(mx, my) {
   tip.style.top = Math.max(8, Math.min(top, height - tipH - 8)) + "px";
 }
 function positionTip(n, mx, my) {
-  var vtxt = era === "pe" ? (n.vpe + " 个携带版视频") : era === "br" ? (n.vbr + " 个基岩版视频") : (n.vpe + " 携带 · " + n.vbr + " 基岩");
   tip.innerHTML = '<div class="row">' + (n.face ? '<img src="' + escapeHtml(n.face) + '" alt="">' : "") +
-    "<div><b>" + escapeHtml(n.name) + '</b><br><span class="sub">' + escapeHtml(n.id) + " · " + vtxt + "</span></div></div>";
+    "<div><b>" + escapeHtml(n.name) + '</b><br><span class="sub">' + escapeHtml(n.id) + "</span></div></div>";
   tip.style.display = "block";
   placeTip(mx, my);
 }
