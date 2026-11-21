@@ -277,6 +277,8 @@ def main():
         n = len(nodes)
         if n == 0:
             continue
+        global K
+        K = 30.0 if n <= 20000 else (42.0 if n <= 40000 else 52.0)
         adj = [[] for _ in range(n)]
         for a, b in edges:
             adj[a].append(b); adj[b].append(a)
@@ -302,14 +304,17 @@ def main():
             return x, y
 
         layouts = {}
+        core_n = len(core)
+        fit_iters = 280 if core_n <= 3000 else (160 if core_n <= 12000 else 90)
+        relax_iters = 150 if n <= 10000 else (90 if n <= 25000 else 55)
         if core:
-            fx, fy = force_layout(len(core), ce)
+            fx, fy = force_layout(core_n, ce, iters=fit_iters)
             x = [0.0] * n; y = [0.0] * n
             for k, i in enumerate(core):
                 x[i], y[i] = fx[k], fy[k]
             x, y = place_halo(x, y)
             layouts["flat"] = (x, y, [0] * n)
-            fx, fy = force_layout(len(core), ce, cgroups)
+            fx, fy = force_layout(core_n, ce, cgroups, iters=fit_iters)
             x = [0.0] * n; y = [0.0] * n
             for k, i in enumerate(core):
                 x[i], y[i] = fx[k], fy[k]
@@ -334,8 +339,9 @@ def main():
         rad = [8 + min(12, math.sqrt(d) * 2.8) for d in deg]
         for name in list(layouts):
             lx, ly, lg = layouts[name]
-            for _ in range(3 if name in ("hub", "hierarchy") else 1):
-                lx, ly = relax_positions(len(lx), lx, ly, rad)
+            passes = 2 if n > 25000 else (3 if name in ("hub", "hierarchy") else 1)
+            for _ in range(passes):
+                lx, ly = relax_positions(len(lx), lx, ly, rad, iters=relax_iters)
             layouts[name] = (lx, ly, lg)
         h = fnv(ids)
         for name, (x, y, g) in layouts.items():

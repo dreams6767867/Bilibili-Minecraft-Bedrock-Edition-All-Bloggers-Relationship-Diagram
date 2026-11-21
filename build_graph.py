@@ -179,6 +179,11 @@ def main():
             continue
         era = era_of(d.get("pubdate") or 0)
         ow = d["owner"]["mid"]
+        add_node(ow, d["owner"].get("name"), d["owner"].get("face", ""))
+        activate(ow, era)
+        for s in d.get("staff", []):
+            add_node(s["mid"], s.get("name"), s.get("face", ""))
+            activate(s["mid"], era)
         staff = [s["mid"] for s in d.get("staff", []) if s["mid"] and s["mid"] != "0"]
         if staff:
             joint_videos += 1
@@ -198,6 +203,11 @@ def main():
             continue
         era = era_of(d.get("pubdate") or v.get("pubdate") or 0)
         ow = d["owner"]["mid"]
+        add_node(ow, d["owner"].get("name"), d["owner"].get("face", ""))
+        activate(ow, era)
+        for s in d.get("staff", []):
+            add_node(s["mid"], s.get("name"), s.get("face", ""))
+            activate(s["mid"], era)
         staff = [s["mid"] for s in d.get("staff", []) if s["mid"] and s["mid"] != "0"]
         if not staff:
             continue

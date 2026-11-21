@@ -1,9 +1,9 @@
 {
- "videos_scanned": 177004,
- "bedrock_videos": 159678,
- "joint_videos": 3942,
- "at_videos": 3244,
- "joint_edges": 5511,
+ "videos_scanned": 186179,
+ "bedrock_videos": 159811,
+ "joint_videos": 13566,
+ "at_videos": 3287,
+ "joint_edges": 63705,
  "year_dist": {
   "2012": 7,
   "2013": 10,
@@ -11,60 +11,60 @@
   "2015": 220,
   "2016": 673,
   "2017": 1759,
-  "2018": 3927,
-  "2019": 6076,
+  "2018": 3926,
+  "2019": 6075,
   "2020": 11513,
   "2021": 11021,
-  "2022": 18538,
+  "2022": 18550,
   "2023": 18872,
-  "2024": 18502,
-  "2025": 28258,
-  "2026": 40272
+  "2024": 18512,
+  "2025": 28308,
+  "2026": 40335
  },
  "all": {
-  "nodes": 32719,
-  "edges": 7626,
-  "isolated": 29124,
+  "nodes": 44124,
+  "edges": 65948,
+  "isolated": 28049,
   "top10": [
    {
-    "name": "离殇之枫",
-    "deg": 99
+    "name": "心凉橙汁",
+    "deg": 250
    },
    {
-    "name": "橘猫sama",
-    "deg": 74
+    "name": "星野shino",
+    "deg": 217
    },
    {
-    "name": "Tokong",
-    "deg": 65
+    "name": "死海_瞎koishi",
+    "deg": 217
    },
    {
-    "name": "Minecraft菠萝君",
-    "deg": 53
+    "name": "GY光隐",
+    "deg": 171
    },
    {
-    "name": "8848yyds",
-    "deg": 41
+    "name": "罗尔桑啊桑啊桑",
+    "deg": 165
    },
    {
-    "name": "愛屹犬瓣劰拘",
-    "deg": 36
+    "name": "bili_96719468159",
+    "deg": 159
    },
    {
-    "name": "涂山咳嗽",
-    "deg": 36
+    "name": "小香橙啊",
+    "deg": 152
    },
    {
-    "name": "心詩之音",
-    "deg": 33
+    "name": "鬼面P",
+    "deg": 133
    },
    {
-    "name": "bro波一",
-    "deg": 31
+    "name": "雲開七幺七",
+    "deg": 131
    },
    {
-    "name": "STAREST_",
-    "deg": 30
+    "name": "nw1156",
+    "deg": 130
    }
   ]
  },
@@ -75,49 +75,49 @@
   "top10": []
  },
  "br": {
-  "nodes": 32242,
-  "edges": 7626,
-  "isolated": 28647,
+  "nodes": 43664,
+  "edges": 65948,
+  "isolated": 27589,
   "top10": [
    {
-    "name": "离殇之枫",
-    "deg": 99
+    "name": "心凉橙汁",
+    "deg": 250
    },
    {
-    "name": "橘猫sama",
-    "deg": 74
+    "name": "星野shino",
+    "deg": 217
    },
    {
-    "name": "Tokong",
-    "deg": 65
+    "name": "死海_瞎koishi",
+    "deg": 217
    },
    {
-    "name": "Minecraft菠萝君",
-    "deg": 53
+    "name": "GY光隐",
+    "deg": 171
    },
    {
-    "name": "8848yyds",
-    "deg": 41
+    "name": "罗尔桑啊桑啊桑",
+    "deg": 165
    },
    {
-    "name": "愛屹犬瓣劰拘",
-    "deg": 36
+    "name": "bili_96719468159",
+    "deg": 159
    },
    {
-    "name": "涂山咳嗽",
-    "deg": 36
+    "name": "小香橙啊",
+    "deg": 152
    },
    {
-    "name": "心詩之音",
-    "deg": 33
+    "name": "鬼面P",
+    "deg": 133
    },
    {
-    "name": "bro波一",
-    "deg": 31
+    "name": "雲開七幺七",
+    "deg": 131
    },
    {
-    "name": "STAREST_",
-    "deg": 30
+    "name": "nw1156",
+    "deg": 130
    }
   ]
  }

@@ -530,17 +530,20 @@ def phase_union():
     mids = [str(n["id"]) for n in g["nodes"]]
     uv = load("union_videos", {})
     done = set(load("union_done", []))
-    # staff-only 创作者在 creators.json 无名字: 用 faces.json 补齐; 之前被跳过的移出 done 重扫
+    # 旧格式(裸mid=只扫过第1页)迁移为 mid|1
+    bare = [m for m in done if "|" not in m]
+    for m in bare:
+        done.discard(m)
+        done.add("%s|1" % m)
+    # staff-only 创作者在 creators.json 无名字: 用 faces.json 补齐
     def name_of(mid):
         return (((creators.get(mid) or {}).get("name")) or ((faces.get(mid) or {}).get("name")) or "")
-    skipped = [m for m in done if not (((creators.get(m) or {}).get("name")) or "") and name_of(m)]
-    for m in skipped:
-        done.discard(m)
-    if skipped:
-        log("联合扫描: 找回 %d 个 staff-only 创作者名字, 加入重扫" % len(skipped))
-    todo = [m for m in mids if m not in done]
-    log("联合投稿扫描: 创作者 %d, 已完成 %d, 本轮 %d, 已有联合视频 %d"
-        % (len(mids), len(done), len(todo), len(uv)))
+    PAGES = 3
+    def missing(m):
+        return any("%s|%d" % (m, p) not in done for p in range(1, PAGES + 1))
+    todo = [m for m in mids if missing(m)]
+    log("联合投稿扫描: 创作者 %d, 已完成 %d, 本轮 %d, 已有联合视频 %d (每人最多%d页)"
+        % (len(mids), len(mids) - len(todo), len(todo), len(uv), PAGES))
     if not todo:
         log("联合投稿扫描无需进行")
         return
@@ -566,35 +569,53 @@ def phase_union():
         name = name_of(mid)
         if not name:
             with lock:
-                done.add(mid); counter[0] += 1
+                for p in range(1, PAGES + 1):
+                    done.add("%s|%d" % (mid, p))
+                counter[0] += 1
             return
-        params = {"search_type": "video", "keyword": name, "page": 1, "page_size": 30, "order": "pubdate"}
-        d = bili.call(lambda: bili.signed_get("search/type", params), "联合 " + name, tries=3, on_risk=brake)
-        if d and d.get("code") == 0:
-            rs = ((d.get("data") or {}).get("result")) or []
-            with lock:
-                for v in rs:
-                    if str(v.get("mid")) != mid or not v.get("is_union_video"):
-                        continue
-                    bv = v.get("bvid")
-                    if not bv or bv in uv:
-                        continue
-                    title = (v.get("title") or "").replace('<em class="keyword">', "").replace("</em>", "")
-                    uv[bv] = {"mid": mid, "author": v.get("author") or name, "title": title,
-                              "desc": v.get("description") or "", "pubdate": v.get("pubdate") or 0,
-                              "tag": v.get("tag") or "", "union": 1}
-                    found[0] += 1
-                done.add(mid); counter[0] += 1
-                if counter[0] % 200 == 0:
-                    save("union_videos", uv); save("union_done", sorted(done))
-                    log("联合扫描进度 %d/%d (%.1f%%), 命中 %d, delay_floor=%.1fs"
-                        % (counter[0], len(todo), 100.0 * counter[0] / max(1, len(todo)), found[0], delay_floor[0]))
-                    if delay_floor[0] > 0.9 and time.time() > pause_until[0]:
-                        delay_floor[0] = max(0.9, delay_floor[0] * 0.9)
-        else:
-            with lock:
-                log("联合失败 %s code=%s" % (name, (d or {}).get("code", "net")))
-        time.sleep(random.uniform(delay_floor[0], delay_floor[0] + 0.4))
+        pn = 1
+        nump = PAGES
+        while pn <= min(PAGES, nump):
+            key = "%s|%d" % (mid, pn)
+            if key in done:
+                pn += 1
+                continue
+            params = {"search_type": "video", "keyword": name, "page": pn, "page_size": 30, "order": "pubdate"}
+            d = bili.call(lambda: bili.signed_get("search/type", params), "联合 %s p%d" % (name, pn), tries=3, on_risk=brake)
+            if d and d.get("code") == 0:
+                data = d.get("data") or {}
+                rs = data.get("result") or []
+                nump = data.get("numPages") or 1
+                with lock:
+                    for v in rs:
+                        if str(v.get("mid")) != mid or not v.get("is_union_video"):
+                            continue
+                        bv = v.get("bvid")
+                        if not bv or bv in uv:
+                            continue
+                        title = (v.get("title") or "").replace('<em class="keyword">', "").replace("</em>", "")
+                        uv[bv] = {"mid": mid, "author": v.get("author") or name, "title": title,
+                                  "desc": v.get("description") or "", "pubdate": v.get("pubdate") or 0,
+                                  "tag": v.get("tag") or "", "union": 1}
+                        found[0] += 1
+                    done.add(key)
+                    if not rs or pn >= nump:
+                        for k in range(pn + 1, PAGES + 1):
+                            done.add("%s|%d" % (mid, k))
+            else:
+                with lock:
+                    log("联合失败 %s p%d code=%s" % (name, pn, (d or {}).get("code", "net")))
+            pn += 1
+            time.sleep(random.uniform(delay_floor[0], delay_floor[0] + 0.4))
+        with lock:
+            counter[0] += 1
+            if counter[0] % 200 == 0:
+                save("union_videos", uv); save("union_done", sorted(done))
+                log("联合扫描进度 %d/%d (%.1f%%), 命中 %d, delay_floor=%.1fs"
+                    % (counter[0], len(todo), 100.0 * counter[0] / max(1, len(todo)), found[0], delay_floor[0]))
+                if delay_floor[0] > 0.9 and time.time() > pause_until[0]:
+                    delay_floor[0] = max(0.9, delay_floor[0] * 0.9)
+        time.sleep(random.uniform(0.2, 0.5))
 
     with ThreadPoolExecutor(max_workers=6) as ex:
         list(ex.map(worker, todo))
