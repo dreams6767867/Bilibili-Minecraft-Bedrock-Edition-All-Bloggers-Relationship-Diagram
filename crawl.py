@@ -633,6 +633,86 @@ def phase_union():
     save("search_videos", videos)
     log("联合投稿扫描完成: %d 条联合视频 (新并入搜索集 %d)" % (len(uv), added))
 
+MC_RE = re.compile(r"我的世界|minecraft|(?<![A-Za-z])mc(?![A-Za-z])|mcbe|mcpe|基岩|bedrock", re.I)
+
+def phase_staffmc():
+    """核查无基岩视频的联合投稿参与者: 自己是否有我的世界类视频"""
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+    with open(os.path.join(BASE, "graph.json"), encoding="utf-8") as f:
+        g = json.load(f)
+    creators = load("creators", {})
+    faces = load("faces", {})
+    uv = load("union_videos", {})
+    uvset = set(uv)
+    targets = [str(n["id"]) for n in g["nodes"] if (n.get("vpe", 0) + n.get("vbr", 0)) == 0]
+    info = load("staff_mc", {})
+    done = set(load("staff_mc_done", []))
+    todo = [m for m in targets if m not in done]
+    log("参与者核查: 无视频节点 %d, 已完成 %d, 本轮 %d" % (len(targets), len(done), len(todo)))
+    if not todo:
+        return
+    lock = threading.Lock()
+    pause_until = [0.0]
+    delay_floor = [0.9]
+    tls = threading.local()
+    counter = [0]
+
+    def name_of(mid):
+        return (((creators.get(mid) or {}).get("name")) or ((faces.get(mid) or {}).get("name")) or "")
+
+    def brake(code):
+        with lock:
+            pause_until[0] = max(pause_until[0], time.time() + 180)
+            delay_floor[0] = min(6.0, delay_floor[0] * 1.8)
+            log("风控刹车 code=%s: 暂停180s delay_floor=%.1fs" % (code, delay_floor[0]))
+
+    def worker(mid):
+        while time.time() < pause_until[0]:
+            time.sleep(2)
+        if not hasattr(tls, "bili"):
+            tls.bili = Bili()
+        bili = tls.bili
+        name = name_of(mid)
+        if not name:
+            with lock:
+                info[mid] = {"mc": 0, "other": 0, "none": 1}
+                done.add(mid); counter[0] += 1
+            return
+        params = {"search_type": "video", "keyword": name, "page": 1, "page_size": 30, "order": "pubdate"}
+        d = bili.call(lambda: bili.signed_get("search/type", params), "参与者 " + name, tries=3, on_risk=brake)
+        if d and d.get("code") == 0:
+            rs = ((d.get("data") or {}).get("result")) or []
+            mc = other = 0
+            for v in rs:
+                if str(v.get("mid")) != mid:
+                    continue
+                if v.get("bvid") in uvset:
+                    continue
+                other += 1
+                text = (v.get("title") or "") + " " + (v.get("tag") or "") + " " + (v.get("description") or "")
+                if MC_RE.search(text):
+                    mc += 1
+            with lock:
+                info[mid] = {"mc": mc, "other": other}
+                done.add(mid); counter[0] += 1
+                if counter[0] % 200 == 0:
+                    save("staff_mc", info); save("staff_mc_done", sorted(done))
+                    log("参与者核查进度 %d/%d, delay_floor=%.1fs"
+                        % (counter[0], len(todo), delay_floor[0]))
+                    if delay_floor[0] > 0.9 and time.time() > pause_until[0]:
+                        delay_floor[0] = max(0.9, delay_floor[0] * 0.9)
+        else:
+            with lock:
+                log("参与者核查失败 %s code=%s" % (name, (d or {}).get("code", "net")))
+        time.sleep(random.uniform(delay_floor[0], delay_floor[0] + 0.4))
+
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        list(ex.map(worker, todo))
+    save("staff_mc", info); save("staff_mc_done", sorted(done))
+    keep = sum(1 for m, v in info.items() if v.get("mc", 0) >= 1 or v.get("other", 0) <= 1)
+    log("参与者核查完成: %d 人, 符合'有MC视频或只有此联投' %d 人" % (len(info), keep))
+
 def phase_details():
     import threading
     from concurrent.futures import ThreadPoolExecutor
@@ -760,6 +840,8 @@ if __name__ == "__main__":
         phase_week()
     elif phase == "union":
         phase_union()
+    elif phase == "staffmc":
+        phase_staffmc()
     elif phase == "details":
         phase_details()
     else:

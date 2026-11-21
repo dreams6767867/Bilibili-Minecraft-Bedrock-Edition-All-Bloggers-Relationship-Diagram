@@ -1,9 +1,9 @@
 {
  "videos_scanned": 186179,
  "bedrock_videos": 159811,
- "joint_videos": 13566,
+ "joint_videos": 11201,
  "at_videos": 3287,
- "joint_edges": 63705,
+ "joint_edges": 29561,
  "year_dist": {
   "2012": 7,
   "2013": 10,
@@ -22,49 +22,49 @@
   "2026": 40335
  },
  "all": {
-  "nodes": 44124,
-  "edges": 65948,
-  "isolated": 28049,
+  "nodes": 38557,
+  "edges": 31826,
+  "isolated": 28253,
   "top10": [
    {
     "name": "心凉橙汁",
-    "deg": 250
+    "deg": 216
    },
    {
     "name": "星野shino",
-    "deg": 217
-   },
-   {
-    "name": "死海_瞎koishi",
-    "deg": 217
+    "deg": 188
    },
    {
     "name": "GY光隐",
-    "deg": 171
-   },
-   {
-    "name": "罗尔桑啊桑啊桑",
-    "deg": 165
-   },
-   {
-    "name": "bili_96719468159",
-    "deg": 159
+    "deg": 156
    },
    {
     "name": "小香橙啊",
-    "deg": 152
+    "deg": 127
    },
    {
-    "name": "鬼面P",
-    "deg": 133
+    "name": "可爱哒小可砸",
+    "deg": 120
+   },
+   {
+    "name": "小夏老鸽鸽",
+    "deg": 118
    },
    {
     "name": "雲開七幺七",
-    "deg": 131
+    "deg": 114
    },
    {
-    "name": "nw1156",
-    "deg": 130
+    "name": "幻奶君",
+    "deg": 106
+   },
+   {
+    "name": "泠雨Youmi",
+    "deg": 105
+   },
+   {
+    "name": "林楠16_official",
+    "deg": 104
    }
   ]
  },
@@ -75,49 +75,49 @@
   "top10": []
  },
  "br": {
-  "nodes": 43664,
-  "edges": 65948,
-  "isolated": 27589,
+  "nodes": 38096,
+  "edges": 31826,
+  "isolated": 27792,
   "top10": [
    {
     "name": "心凉橙汁",
-    "deg": 250
+    "deg": 216
    },
    {
     "name": "星野shino",
-    "deg": 217
-   },
-   {
-    "name": "死海_瞎koishi",
-    "deg": 217
+    "deg": 188
    },
    {
     "name": "GY光隐",
-    "deg": 171
-   },
-   {
-    "name": "罗尔桑啊桑啊桑",
-    "deg": 165
-   },
-   {
-    "name": "bili_96719468159",
-    "deg": 159
+    "deg": 156
    },
    {
     "name": "小香橙啊",
-    "deg": 152
+    "deg": 127
    },
    {
-    "name": "鬼面P",
-    "deg": 133
+    "name": "可爱哒小可砸",
+    "deg": 120
+   },
+   {
+    "name": "小夏老鸽鸽",
+    "deg": 118
    },
    {
     "name": "雲開七幺七",
-    "deg": 131
+    "deg": 114
    },
    {
-    "name": "nw1156",
-    "deg": 130
+    "name": "幻奶君",
+    "deg": 106
+   },
+   {
+    "name": "泠雨Youmi",
+    "deg": 105
+   },
+   {
+    "name": "林楠16_official",
+    "deg": 104
    }
   ]
  }

@@ -172,27 +172,35 @@ def main():
             add_edge(v["mid"], names[nm], era, "at")
 
     # 3.5) 手工/定向补录: 无基岩标签但确属基岩社区的合作视频
+    staff_mc = load("staff_mc", {})
+    def staff_ok(mid):
+        if mid in nodes and (nodes[mid]["vpe"] + nodes[mid]["vbr"]) > 0:
+            return True
+        s = staff_mc.get(mid)
+        if not s:
+            return False
+        return (s.get("mc") or 0) >= 1 or (s.get("other") or 0) <= 1
     extra = set(load("extra_videos", []))
     for bv in extra:
         d = details.get(bv)
         if not d or "err" in d:
             continue
         era = era_of(d.get("pubdate") or 0)
-        ow = d["owner"]["mid"]
-        add_node(ow, d["owner"].get("name"), d["owner"].get("face", ""))
-        activate(ow, era)
-        for s in d.get("staff", []):
-            add_node(s["mid"], s.get("name"), s.get("face", ""))
-            activate(s["mid"], era)
-        staff = [s["mid"] for s in d.get("staff", []) if s["mid"] and s["mid"] != "0"]
-        if staff:
-            joint_videos += 1
-            party = [ow] + staff
-            for i in range(len(party)):
-                for j in range(i + 1, len(party)):
-                    add_edge(party[i], party[j], era, "joint")
+        names_by_mid = {d["owner"]["mid"]: d["owner"], **{s["mid"]: s for s in d.get("staff", [])}}
+        party = [d["owner"]["mid"]] + [s["mid"] for s in d.get("staff", []) if s["mid"] and s["mid"] != "0"]
+        party = [m for m in party if staff_ok(m)]
+        if len(party) < 2:
+            continue
+        for m in party:
+            p = names_by_mid.get(m) or {}
+            add_node(m, p.get("name"), p.get("face", ""))
+            activate(m, era)
+        joint_videos += 1
+        for i in range(len(party)):
+            for j in range(i + 1, len(party)):
+                add_edge(party[i], party[j], era, "joint")
         for nm in match_at((d.get("title") or "") + "\n" + (d.get("desc") or ""), names):
-            add_edge(ow, names[nm], era, "at")
+            add_edge(party[0], names[nm], era, "at")
 
     # 3.6) 联合投稿扫描: 视频本身无基岩标签, 但属于图内基岩创作者的合作
     for bv, v in videos.items():
@@ -202,22 +210,21 @@ def main():
         if not d or "err" in d:
             continue
         era = era_of(d.get("pubdate") or v.get("pubdate") or 0)
-        ow = d["owner"]["mid"]
-        add_node(ow, d["owner"].get("name"), d["owner"].get("face", ""))
-        activate(ow, era)
-        for s in d.get("staff", []):
-            add_node(s["mid"], s.get("name"), s.get("face", ""))
-            activate(s["mid"], era)
-        staff = [s["mid"] for s in d.get("staff", []) if s["mid"] and s["mid"] != "0"]
-        if not staff:
+        party = [d["owner"]["mid"]] + [s["mid"] for s in d.get("staff", []) if s["mid"] and s["mid"] != "0"]
+        names_by_mid = {d["owner"]["mid"]: d["owner"], **{s["mid"]: s for s in d.get("staff", [])}}
+        party = [m for m in party if staff_ok(m)]
+        if len(party) < 2:
             continue
+        for m in party:
+            p = names_by_mid.get(m) or {}
+            add_node(m, p.get("name"), p.get("face", ""))
+            activate(m, era)
         joint_videos += 1
-        party = [ow] + staff
         for i in range(len(party)):
             for j in range(i + 1, len(party)):
                 add_edge(party[i], party[j], era, "joint")
         for nm in match_at((d.get("title") or "") + "\n" + (d.get("desc") or ""), names):
-            add_edge(ow, names[nm], era, "at")
+            add_edge(party[0], names[nm], era, "at")
 
     # 4) 输出
     node_list = [{"id": mid, "name": n["name"] or mid, "face": n["face"],
