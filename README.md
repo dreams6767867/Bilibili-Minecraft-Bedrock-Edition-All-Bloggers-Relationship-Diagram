@@ -46,7 +46,7 @@ crawl.py          # 爬虫：search / space / mcbe / details 四个阶段，可�
 启动预览.cmd       # Windows 一键启动本地预览
 ```
 
-`state/` 含完整抓取原始数据（约 150MB），随仓库提供，可离线重建而无需重新抓取；`dist/` 为发布产物，不纳入版本库。
+`state/` 含完整抓取原始数据，随仓库提供，可离线重建而无需重新抓取；超过 GitHub 单文件上限的 `details.json` 以 `details.json.gz` 形式存放（脚本会自动读取 gz，无需手动解压）。`dist/` 为发布产物，不纳入版本库。
 
 ## 预览图
 

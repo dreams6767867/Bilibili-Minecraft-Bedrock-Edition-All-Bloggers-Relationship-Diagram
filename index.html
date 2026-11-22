@@ -53,6 +53,16 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--site-b
 #toolToggle .ic-close { display: none; }
 #toolbox.toolmode #toolToggle .ic-open { display: none; }
 #toolbox.toolmode #toolToggle .ic-close { display: block; }
+#feedbackBtn { position: fixed; z-index: 6; left: calc(14px + env(safe-area-inset-left)); bottom: calc(14px + env(safe-area-inset-bottom));
+  height: 34px; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px; background: rgba(19,22,28,.97);
+  border: 1px solid var(--site-border); border-radius: 999px; color: var(--site-muted); font: inherit; font-size: 12px;
+  cursor: pointer; text-decoration: none; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+#feedbackBtn:hover { color: var(--site-fg); border-color: #3b4553; }
+#curateBar { position: fixed; z-index: 7; left: calc(14px + env(safe-area-inset-left)); bottom: calc(56px + env(safe-area-inset-bottom)); display: flex; gap: 8px; align-items: center; }
+#curateBar button { height: 30px; padding: 0 12px; border-radius: 999px; background: rgba(19,22,28,.97); border: 1px solid var(--site-border); color: var(--site-muted); font: inherit; font-size: 12px; cursor: pointer; }
+#curateBar button:hover { color: var(--site-fg); border-color: #3b4553; }
+.cbadge { color: #ffb86b; font-size: 12px; }
+.chint { color: var(--site-muted); font-size: 12px; }
 #toolbox.remind::after { content: ""; position: absolute; inset: 0; border-radius: 999px; border: 1.5px solid rgba(255,255,255,.7); animation: ripple 1.2s ease-out; pointer-events: none; }
 @keyframes ripple { from { inset: 0; opacity: .7; } to { inset: -13px; opacity: 0; } }
 #searchStatus { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 0 4px 0 13px; cursor: pointer; }
@@ -134,6 +144,14 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--site-b
   </div>
 </div>
 <div id="tip"></div>
+<a id="feedbackBtn" href="https://wj.qq.com/s2/28773984/zrir/" target="_blank" rel="noopener">反馈</a>
+<div id="curateBar" style="display:none">
+  <span class="cbadge">管理模式</span>
+  <span class="chint">点击选中，Delete 删除并连带邻居</span>
+  <button id="curateAdd">添加人物</button>
+  <button id="curateExport">导出删除清单</button>
+  <button id="curateClear">撤销全部</button>
+</div>
 <div id="toolbox">
   <div id="toolBody">
     <div id="toolButtons">
@@ -243,7 +261,19 @@ function nodeColor(i) {
   return d >= 10 ? "#7d9fc7" : (d >= 4 ? "#5d7089" : "#465366");
 }
 
+var CURATE = /[?&]curate=1\b/.test(location.search);
+var curateDeleted = new Set([]);
+try {
+  var savedDel = JSON.parse(localStorage.getItem("curate_delete") || "[]");
+  (savedDel || []).forEach(function (id) { curateDeleted.add(String(id)); });
+} catch (e) {}
+var curateHidden = function (id) { return CURATE && curateDeleted.has(String(id)); };
+var curateSel = -1;
+var curateAdded = [];
+try { curateAdded = JSON.parse(localStorage.getItem("curate_add") || "[]") || []; } catch (e) { curateAdded = []; }
+
 function buildView() {
+  curateSel = -1;
   var vn = GRAPH.nodes.filter(function (n) { return era === "all" || n[era]; });
   nodes = vn.map(function (n) {
     return { id: String(n.id), name: n.name || "", face: faceUrl(n.face), vpe: n.vpe || 0, vbr: n.vbr || 0,
@@ -401,6 +431,7 @@ function draw() {
   ctx.textAlign = "center"; ctx.textBaseline = "middle";
   for (var k = 0; k < nodes.length; k++) {
     var n = nodes[k];
+    if (curateHidden(n.id)) continue;
     var x = n.x * view.scale + view.ox, y = n.y * view.scale + view.oy;
     var r = screenR[k];
     if (x < -r || y < -r || x > width + r || y > height + r) continue;
@@ -428,12 +459,17 @@ function draw() {
       ctx.strokeStyle = isFocus ? lighten(color, 0.55) : color;
       ctx.lineWidth = ringW; ctx.stroke();
     }
+    if (CURATE && k === curateSel) {
+      ctx.beginPath(); ctx.arc(x, y, r + 3.5, 0, Math.PI * 2);
+      ctx.strokeStyle = "#ffb86b"; ctx.lineWidth = 2.2 * strokeUnit; ctx.stroke();
+    }
     ctx.globalAlpha = 1;
   }
   if (fadeActive) scheduleDraw();
 }
 function addEdgePath(ei) {
   var ed = edges[ei], A = nodes[ed.a], B = nodes[ed.b];
+  if (curateHidden(A.id) || curateHidden(B.id)) return;
   var ax = A.x * view.scale + view.ox, ay = A.y * view.scale + view.oy;
   var bx = B.x * view.scale + view.ox, by = B.y * view.scale + view.oy;
   var dx = bx - ax, dy = by - ay, len = Math.hypot(dx, dy) || 1;
@@ -543,6 +579,7 @@ function startInertia() {
 function nearestNode(mx, my, slop) {
   var best = null, bestD = Infinity, pad = slop == null ? 2 : slop;
   for (var i = 0; i < nodes.length; i++) {
+    if (curateHidden(nodes[i].id)) continue;
     var x = nodes[i].x * view.scale + view.ox, y = nodes[i].y * view.scale + view.oy;
     var r = Math.min(44, Math.max(3, nodes[i].radius * view.scale)) + pad;
     var d = Math.hypot(mx - x, my - y);
@@ -634,6 +671,19 @@ function focusNode(i) {
   scheduleDraw();
 }
 function handleTap(mx, my) {
+  if (CURATE) {
+    var ct = nearestNode(mx, my, 26);
+    if (ct) {
+      curateSel = ct.index;
+      hovered = ct.index; hoverAmount = 1;
+      positionTip(nodes[ct.index], mx, my);
+      scheduleDraw();
+    } else {
+      curateSel = -1;
+      hideTip();
+    }
+    return;
+  }
   var now = performance.now();
   var near = Math.hypot(mx - lastTap.x, my - lastTap.y) < 44;
   if (now - lastTap.t < 320 && near) {
@@ -734,6 +784,10 @@ function endPointer(ev) {
     if (!g) { endInteractionSoon(); return; }
     if (g.type === "mouse") {
       endInteractionSoon();
+      if (CURATE) {
+        if (g.moved < 8) handleTap(ev.clientX, ev.clientY);
+        return;
+      }
       var hit = nearestNode(ev.clientX, ev.clientY, 2);
       requestHover(hit ? hit.index : -1, ev.clientX, ev.clientY);
       return;
@@ -1062,6 +1116,68 @@ loadLayout("flat", true).then(function () {
   stat.textContent = "布局加载失败(需要 layouts/ 目录)";
   loading.classList.add("hide");
 });
+function refreshAfterCurate() {
+  curateSel = -1;
+  hideTip();
+  stat.textContent = nodes.length + "人 " + edges.length + "边（已隐藏 " + curateDeleted.size + " 人）";
+  scheduleDraw();
+}
+if (CURATE) {
+  var cbar = document.getElementById("curateBar");
+  if (cbar) cbar.style.display = "flex";
+  document.getElementById("curateExport").addEventListener("click", function () {
+    var arr = [];
+    curateDeleted.forEach(function (id) {
+      var nm = "";
+      for (var i = 0; i < GRAPH.nodes.length; i++) {
+        if (String(GRAPH.nodes[i].id) === String(id)) { nm = GRAPH.nodes[i].name; break; }
+      }
+      arr.push({ id: String(id), name: nm });
+    });
+    var blob = new Blob([JSON.stringify({ delete: arr, add: curateAdded }, null, 1)], { type: "application/json" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "curation.json";
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  });
+  document.getElementById("curateAdd").addEventListener("click", function () {
+    var v = prompt("输入 B站 UID（纯数字）或创作者名称：");
+    if (!v) return;
+    v = v.trim();
+    if (!v) return;
+    var item = /^\d+$/.test(v) ? { id: v, name: "" } : { id: "", name: v };
+    curateAdded.push(item);
+    localStorage.setItem("curate_add", JSON.stringify(curateAdded));
+    alert("已加入待添加清单（" + curateAdded.length + " 人）。\n导出清单后由维护者重建，才能出现在全站图上。");
+  });
+  document.getElementById("curateClear").addEventListener("click", function () {
+    if (!confirm("撤销全部删除和添加？")) return;
+    curateDeleted.clear();
+    curateAdded = [];
+    localStorage.removeItem("curate_delete");
+    localStorage.removeItem("curate_add");
+    refreshAfterCurate();
+  });
+  window.addEventListener("keydown", function (ev) {
+    if (!CURATE) return;
+    var t = ev.target || {};
+    if (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable) return;
+    if (ev.key !== "Delete" && ev.key !== "Backspace") return;
+    if (curateSel < 0 || curateSel >= nodes.length) return;
+    ev.preventDefault();
+    var nd = nodes[curateSel];
+    if (!nd) return;
+    curateDeleted.add(String(nd.id));
+    // 连带删除所有直接相连的节点
+    incidentEdges[curateSel].forEach(function (ei) {
+      var o = edges[ei].a === curateSel ? edges[ei].b : edges[ei].a;
+      if (nodes[o]) curateDeleted.add(String(nodes[o].id));
+    });
+    localStorage.setItem("curate_delete", JSON.stringify(Array.from(curateDeleted)));
+    refreshAfterCurate();
+  });
+}
 })();
 </script>
 </body>

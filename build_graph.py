@@ -14,6 +14,11 @@ def load(name, default):
     if os.path.exists(p):
         with open(p, encoding="utf-8") as f:
             return json.load(f)
+    gz = p + ".gz"
+    if os.path.exists(gz):
+        import gzip
+        with gzip.open(gz, "rt", encoding="utf-8") as f:
+            return json.load(f)
     return default
 
 STRONG = re.compile(r"基岩|bedrock|mcbe|mcpe|携带版|addon|行为包|pocket\s*edition|minecraft\s*pe|(?<![A-Za-z])pe(?![A-Za-z])", re.I)
@@ -173,13 +178,17 @@ def main():
 
     # 3.5) 手工/定向补录: 无基岩标签但确属基岩社区的合作视频
     staff_mc = load("staff_mc", {})
+    staff_mc2 = load("staff_mc2", {})
     def staff_ok(mid):
         if mid in nodes and (nodes[mid]["vpe"] + nodes[mid]["vbr"]) > 0:
             return True
+        s2 = staff_mc2.get(mid)
+        if s2:
+            return (s2.get("mc") or 0) >= 1 or (s2.get("other") or 0) == 0
         s = staff_mc.get(mid)
         if not s:
             return False
-        return (s.get("mc") or 0) >= 1 or (s.get("other") or 0) <= 1
+        return (s.get("other") or 0) == 0
     extra = set(load("extra_videos", []))
     for bv in extra:
         d = details.get(bv)
@@ -233,6 +242,29 @@ def main():
     node_list.sort(key=lambda x: -(x["vpe"] + x["vbr"]))
     links = [{"source": a, "target": b, "pe": e["pe"], "br": e["br"], "j": e["j"]}
              for (a, b), e in edges.items()]
+    # 人工策展: 删除优先, 添加可选
+    curation = load("curation", {})
+    del_ids = {str(x.get("id")) for x in curation.get("delete", []) if x.get("id")}
+    if del_ids:
+        node_list = [n for n in node_list if n["id"] not in del_ids]
+        links = [l for l in links if l["source"] not in del_ids and l["target"] not in del_ids]
+    have = {n["id"] for n in node_list}
+    for x in curation.get("add", []):
+        mid = str(x.get("id") or "")
+        name = (x.get("name") or "").strip()
+        if not mid and name:
+            mid = names.get(name) or ""
+            if not mid:
+                for fmid, f in faces.items():
+                    if (f.get("name") or "") == name:
+                        mid = str(fmid); break
+        if not mid or mid in have:
+            continue
+        era = x.get("era") or "br"
+        node_list.append({"id": mid, "name": name or mid, "face": x.get("face") or "",
+                          "pe": 1 if era == "pe" else 0, "br": 1 if era == "br" else 0,
+                          "vpe": 0, "vbr": 0})
+        have.add(mid)
     graph = {"nodes": node_list, "links": links, "eraSplit": "2017-09-20"}
     with open(os.path.join(BASE, "graph.json"), "w", encoding="utf-8") as f:
         json.dump(graph, f, ensure_ascii=False)

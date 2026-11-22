@@ -27,6 +27,11 @@ def load(name, default):
     if os.path.exists(p):
         with open(p, encoding="utf-8") as f:
             return json.load(f)
+    gz = p + ".gz"
+    if os.path.exists(gz):
+        import gzip
+        with gzip.open(gz, "rt", encoding="utf-8") as f:
+            return json.load(f)
     return default
 
 def save(name, obj):
@@ -538,6 +543,13 @@ def phase_union():
     # staff-only 创作者在 creators.json 无名字: 用 faces.json 补齐
     def name_of(mid):
         return (((creators.get(mid) or {}).get("name")) or ((faces.get(mid) or {}).get("name")) or "")
+    # 修复历史误标: 早期空结果也会标记完成, 全量强制刷新一次第1页
+    refreshed = set(load("union_p1_refresh", []))
+    need_p1 = set(m for m in mids if m not in refreshed)
+    for m in need_p1:
+        done.discard("%s|1" % m)
+    if need_p1:
+        log("联合扫描: 第1页强制刷新 %d 人" % len(need_p1))
     PAGES = 3
     def missing(m):
         return any("%s|%d" % (m, p) not in done for p in range(1, PAGES + 1))
@@ -599,6 +611,8 @@ def phase_union():
                                   "tag": v.get("tag") or "", "union": 1}
                         found[0] += 1
                     done.add(key)
+                    if key.endswith("|1") and mid in need_p1:
+                        refreshed.add(mid)
                     if not rs or pn >= nump:
                         for k in range(pn + 1, PAGES + 1):
                             done.add("%s|%d" % (mid, k))
@@ -610,7 +624,7 @@ def phase_union():
         with lock:
             counter[0] += 1
             if counter[0] % 200 == 0:
-                save("union_videos", uv); save("union_done", sorted(done))
+                save("union_videos", uv); save("union_done", sorted(done)); save("union_p1_refresh", sorted(refreshed))
                 log("联合扫描进度 %d/%d (%.1f%%), 命中 %d, delay_floor=%.1fs"
                     % (counter[0], len(todo), 100.0 * counter[0] / max(1, len(todo)), found[0], delay_floor[0]))
                 if delay_floor[0] > 0.9 and time.time() > pause_until[0]:
@@ -619,7 +633,7 @@ def phase_union():
 
     with ThreadPoolExecutor(max_workers=6) as ex:
         list(ex.map(worker, todo))
-    save("union_videos", uv); save("union_done", sorted(done))
+    save("union_videos", uv); save("union_done", sorted(done)); save("union_p1_refresh", sorted(refreshed))
     videos = load("search_videos", {})
     added = 0
     for bv, rec in uv.items():
@@ -645,7 +659,21 @@ def phase_staffmc():
     faces = load("faces", {})
     uv = load("union_videos", {})
     uvset = set(uv)
-    targets = [str(n["id"]) for n in g["nodes"] if (n.get("vpe", 0) + n.get("vbr", 0)) == 0]
+    with open(os.path.join(BASE, "graph.json"), encoding="utf-8") as f:
+        g0 = json.load(f)
+    have = {str(n["id"]) for n in g0["nodes"] if (n.get("vpe", 0) + n.get("vbr", 0)) > 0}
+    staff_mids = set()
+    details = load("details", {})
+    for bv in uvset:
+        dd = details.get(bv) or {}
+        if "err" in dd:
+            continue
+        for s in dd.get("staff", []):
+            if s.get("mid") and s["mid"] != "0":
+                staff_mids.add(str(s["mid"]))
+        if dd.get("owner", {}).get("mid"):
+            staff_mids.add(str(dd["owner"]["mid"]))
+    targets = sorted(({str(n["id"]) for n in g0["nodes"] if (n.get("vpe", 0) + n.get("vbr", 0)) == 0} | staff_mids) - have)
     info = load("staff_mc", {})
     done = set(load("staff_mc_done", []))
     todo = [m for m in targets if m not in done]
@@ -712,6 +740,82 @@ def phase_staffmc():
     save("staff_mc", info); save("staff_mc_done", sorted(done))
     keep = sum(1 for m, v in info.items() if v.get("mc", 0) >= 1 or v.get("other", 0) <= 1)
     log("参与者核查完成: %d 人, 符合'有MC视频或只有此联投' %d 人" % (len(info), keep))
+
+BEDROCK_RE = re.compile(r"基岩|bedrock|mcbe|mcpe|携带版|addon|行为包|pocket\s*edition|minecraft\s*pe|(?<![A-Za-z])pe(?![A-Za-z])", re.I)
+
+def phase_staffmc2():
+    """参与者必须有基岩相关自有视频(纯Java不算), 重查所有非基岩创作者参与者"""
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+    creators = load("creators", {})
+    faces = load("faces", {})
+    uv = load("union_videos", {})
+    uvset = set(uv)
+    sm = load("staff_mc", {})
+    targets = [m for m, v in sm.items() if (v.get("other") or 0) > 0]
+    info = load("staff_mc2", {})
+    done = set(load("staff_mc2_done", []))
+    todo = [m for m in targets if m not in done]
+    log("参与者复查(基岩标准): 目标 %d, 已完成 %d, 本轮 %d" % (len(targets), len(done), len(todo)))
+    if not todo:
+        return
+    lock = threading.Lock()
+    pause_until = [0.0]
+    delay_floor = [0.9]
+    tls = threading.local()
+    counter = [0]
+
+    def name_of(mid):
+        return (((creators.get(mid) or {}).get("name")) or ((faces.get(mid) or {}).get("name")) or "")
+
+    def brake(code):
+        with lock:
+            pause_until[0] = max(pause_until[0], time.time() + 180)
+            delay_floor[0] = min(6.0, delay_floor[0] * 1.8)
+            log("风控刹车 code=%s: 暂停180s delay_floor=%.1fs" % (code, delay_floor[0]))
+
+    def worker(mid):
+        while time.time() < pause_until[0]:
+            time.sleep(2)
+        if not hasattr(tls, "bili"):
+            tls.bili = Bili()
+        bili = tls.bili
+        name = name_of(mid)
+        if not name:
+            with lock:
+                info[mid] = {"mc": 0, "other": 0}
+                done.add(mid); counter[0] += 1
+            return
+        params = {"search_type": "video", "keyword": name, "page": 1, "page_size": 30, "order": "pubdate"}
+        d = bili.call(lambda: bili.signed_get("search/type", params), "复查 " + name, tries=3, on_risk=brake)
+        if d and d.get("code") == 0:
+            rs = ((d.get("data") or {}).get("result")) or []
+            mc = other = 0
+            for v in rs:
+                if str(v.get("mid")) != mid or v.get("bvid") in uvset:
+                    continue
+                other += 1
+                text = (v.get("title") or "") + " " + (v.get("tag") or "") + " " + (v.get("description") or "")
+                if BEDROCK_RE.search(text):
+                    mc += 1
+            with lock:
+                info[mid] = {"mc": mc, "other": other}
+                done.add(mid); counter[0] += 1
+                if counter[0] % 200 == 0:
+                    save("staff_mc2", info); save("staff_mc2_done", sorted(done))
+                    log("复查进度 %d/%d, delay_floor=%.1fs" % (counter[0], len(todo), delay_floor[0]))
+                    if delay_floor[0] > 0.9 and time.time() > pause_until[0]:
+                        delay_floor[0] = max(0.9, delay_floor[0] * 0.9)
+        else:
+            with lock:
+                log("复查失败 %s code=%s" % (name, (d or {}).get("code", "net")))
+        time.sleep(random.uniform(delay_floor[0], delay_floor[0] + 0.4))
+
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        list(ex.map(worker, todo))
+    save("staff_mc2", info); save("staff_mc2_done", sorted(done))
+    keep = sum(1 for m, v in info.items() if v.get("mc", 0) >= 1 or v.get("other", 0) == 0)
+    log("参与者复查完成: %d 人, 新规则下合格 %d 人" % (len(info), keep))
 
 def phase_details():
     import threading
@@ -842,6 +946,8 @@ if __name__ == "__main__":
         phase_union()
     elif phase == "staffmc":
         phase_staffmc()
+    elif phase == "staffmc2":
+        phase_staffmc2()
     elif phase == "details":
         phase_details()
     else:
